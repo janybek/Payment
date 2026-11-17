@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<title>Оплата контракта — студенты кампуса</title>
+<style>
+:root{
+  --bg:#f4f6f8; --card:#fff; --ink:#18212b; --muted:#6b7785; --line:#e3e8ee;
+  --brand:#1f4e78; --brand-2:#2c6aa3;
+  --ok:#1e8e4f; --ok-bg:#e3f5ea; --bad:#c62f3a; --bad-bg:#fde6e8; --warn:#9a6a00; --warn-bg:#fff4d6;
+  --r:14px; --shadow:0 1px 2px rgba(16,24,40,.05),0 1px 3px rgba(16,24,40,.08);
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif}
+button,input,select,textarea{font:inherit;color:inherit}
+.wrap{max-width:1100px;margin:0 auto;padding:0 14px}
+header{background:var(--brand);color:#fff;padding:14px 0 16px;position:sticky;top:0;z-index:20;box-shadow:0 2px 8px rgba(0,0,0,.12)}
+.hrow{display:flex;align-items:center;gap:10px;justify-content:space-between}
+h1{font-size:18px;margin:0;font-weight:700;letter-spacing:.2px}
+.sub{font-size:12.5px;opacity:.8;margin-top:2px}
+.hbtn{background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.25);color:#fff;border-radius:10px;padding:7px 12px;cursor:pointer;white-space:nowrap;font-size:14px}
+.hbtn:hover{background:rgba(255,255,255,.24)}
+.who{font-size:12.5px;opacity:.9;margin-right:6px}
+
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:14px 0 10px}
+.stat{background:var(--card);border-radius:var(--r);padding:10px 12px;box-shadow:var(--shadow);cursor:pointer;border:2px solid transparent;transition:border-color .15s}
+.stat.on{border-color:var(--brand-2)}
+.stat b{display:block;font-size:22px;line-height:1.1}
+.stat span{font-size:12.5px;color:var(--muted)}
+.stat.ok b{color:var(--ok)} .stat.bad b{color:var(--bad)}
+.bar{height:6px;border-radius:6px;background:var(--bad-bg);overflow:hidden;margin:2px 0 12px}
+.bar i{display:block;height:100%;background:var(--ok);transition:width .3s}
+
+.filters{background:var(--card);border-radius:var(--r);box-shadow:var(--shadow);padding:10px;display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.search{flex:1 1 220px;position:relative}
+.search input{width:100%;padding:10px 12px 10px 36px;border:1px solid var(--line);border-radius:10px;background:#fafbfc}
+.search svg{position:absolute;left:11px;top:50%;transform:translateY(-50%);opacity:.45}
+select{padding:9px 10px;border:1px solid var(--line);border-radius:10px;background:#fafbfc;min-width:0}
+.seg{display:flex;background:#eef1f5;border-radius:10px;padding:3px;gap:2px}
+.seg button{border:0;background:transparent;padding:7px 10px;white-space:nowrap;border-radius:8px;cursor:pointer;font-size:14px;color:var(--muted)}
+.seg button.on{background:#fff;color:var(--ink);box-shadow:var(--shadow);font-weight:600}
+.chip{border:1px solid var(--line);background:#fafbfc;border-radius:10px;padding:8px 11px;cursor:pointer;font-size:14px}
+.chip.on{background:var(--warn-bg);border-color:#f0d58a;color:var(--warn);font-weight:600}
+.addbtn{background:var(--brand);color:#fff;border:0;border-radius:10px;padding:9px 14px;cursor:pointer;font-weight:600}
+.addbtn:hover{background:var(--brand-2)}
+
+.meta{display:flex;justify-content:space-between;align-items:center;color:var(--muted);font-size:13px;margin:12px 2px 6px}
+.meta a{color:var(--brand-2);cursor:pointer;text-decoration:none}
+
+.list{display:flex;flex-direction:column;gap:6px;padding-bottom:40px}
+.grp{font-size:12.5px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin:12px 4px 2px;display:flex;justify-content:space-between}
+.row{background:var(--card);border-radius:12px;box-shadow:var(--shadow);padding:10px 12px;display:flex;align-items:center;gap:10px}
+.row .dot{width:10px;height:10px;border-radius:50%;flex:none}
+.row.p .dot{background:var(--ok)} .row.u .dot{background:var(--bad)}
+.nm{flex:1;min-width:0}
+.nm b{display:block;font-weight:600;overflow:hidden;text-overflow:ellipsis}
+.nm small{color:var(--muted);font-size:12.5px;display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.badge{font-size:12.5px;font-weight:700;border-radius:999px;padding:4px 10px;white-space:nowrap}
+.row.p .badge{background:var(--ok-bg);color:var(--ok)} .row.u .badge{background:var(--bad-bg);color:var(--bad)}
+.warn{font-size:12px;background:var(--warn-bg);color:var(--warn);border-radius:6px;padding:1px 6px;margin-left:6px;font-weight:600}
+.pay{border:0;border-radius:10px;padding:8px 12px;font-weight:700;cursor:pointer;white-space:nowrap;min-width:118px}
+.row.u .pay{background:var(--ok);color:#fff}
+.row.p .pay{background:#eef1f5;color:var(--muted)}
+.pay:disabled{opacity:.5;cursor:wait}
+.edit{border:1px solid var(--line);background:#fff;border-radius:10px;padding:7px 9px;cursor:pointer}
+.empty{text-align:center;color:var(--muted);padding:40px 10px}
+.more{margin:8px auto 30px;display:block;border:1px solid var(--line);background:#fff;border-radius:10px;padding:10px 18px;cursor:pointer}
+
+.loader{display:flex;justify-content:center;padding:50px}
+.spin{width:28px;height:28px;border:3px solid #d6dde6;border-top-color:var(--brand);border-radius:50%;animation:s 1s linear infinite}
+@keyframes s{to{transform:rotate(360deg)}}
+
+.modal{position:fixed;inset:0;background:rgba(15,23,33,.45);display:none;align-items:flex-end;justify-content:center;z-index:50}
+.modal.show{display:flex}
+.box{background:#fff;width:100%;max-width:520px;border-radius:18px 18px 0 0;padding:18px;max-height:92vh;overflow:auto}
+@media(min-width:640px){.modal{align-items:center}.box{border-radius:18px}}
+.box h2{margin:0 0 12px;font-size:18px}
+.fld{margin-bottom:10px}
+.fld label{display:block;font-size:12.5px;color:var(--muted);margin-bottom:3px}
+.fld input,.fld select,.fld textarea{width:100%;padding:10px 11px;border:1px solid var(--line);border-radius:10px;background:#fafbfc}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.acts{display:flex;gap:8px;justify-content:flex-end;margin-top:14px}
+.btn{border:1px solid var(--line);background:#fff;border-radius:10px;padding:10px 16px;cursor:pointer}
+.btn.pri{background:var(--brand);color:#fff;border-color:var(--brand);font-weight:600}
+.err{color:var(--bad);font-size:13.5px;min-height:18px;margin-top:4px}
+
+.toast span{flex:1}
+.toast{min-width:280px;position:fixed;left:50%;bottom:18px;transform:translateX(-50%) translateY(120px);background:#18212b;color:#fff;border-radius:12px;padding:11px 14px;display:flex;gap:14px;align-items:center;box-shadow:0 6px 24px rgba(0,0,0,.25);transition:transform .25s;z-index:60;max-width:92vw;font-size:14px}
+.toast.show{transform:translateX(-50%) translateY(0)}
+.toast button{background:none;border:0;color:#7cc0ff;font-weight:700;cursor:pointer;padding:0}
+
+@media(max-width:560px){
+  h1{font-size:16px}
+  .stat b{font-size:19px}
+  .filters select{flex:1 1 45%}
+  .seg{flex:1 1 100%}.seg button{flex:1}
+  .pay{min-width:0;padding:8px 10px}
+  .seg button{font-size:13px;padding:7px 4px}
+  .admin .row .badge{display:none}
+}
+</style>
+</head>
+<body>
+<header>
+  <div class="wrap hrow">
+    <div>
+      <h1>Оплата контракта</h1>
+      <div class="sub" id="sub">Студенты кампуса · 2026–2027</div>
+    </div>
+    <div style="display:flex;align-items:center">
+      <span class="who" id="who"></span>
+      <button class="hbtn" id="authBtn">Вход</button>
+    </div>
+  </div>
+</header>
+
+<main class="wrap">
+  <div class="stats">
+    <div class="stat" data-f="all"><b id="sAll">—</b><span>Всего</span></div>
+    <div class="stat ok" data-f="p"><b id="sP">—</b><span>Оплатили</span></div>
+    <div class="stat bad" data-f="u"><b id="sU">—</b><span>Не оплатили</span></div>
+  </div>
+  <div class="bar"><i id="barI" style="width:0"></i></div>
+
+  <div class="filters">
+    <div class="search">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+      <input id="q" type="search" placeholder="Поиск по ФИО (рус. или англ.)" autocomplete="off">
+    </div>
+    <select id="fSem"><option value="">Все семестры</option></select>
+    <select id="fGrp"><option value="">Все группы</option></select>
+    <div class="seg" id="fStatus">
+      <button data-v="all" class="on">Все</button>
+      <button data-v="p">🟢 Оплатили</button>
+      <button data-v="u">🔴 Не оплатили</button>
+    </div>
+    <button class="chip adm" id="fCheck" hidden>⚠ Проверить</button>
+    <select id="sort">
+      <option value="grp">↕ По группам</option>
+      <option value="name">↕ По ФИО (А–Я)</option>
+    </select>
+    <button class="addbtn adm" id="addBtn" hidden>+ Студент</button>
+  </div>
+
+  <div class="meta"><span id="count"></span><a id="reset">Сбросить фильтры</a></div>
+  <div id="list" class="list"><div class="loader"><div class="spin"></div></div></div>
+</main>
+
+<!-- Вход -->
+<div class="modal" id="mLogin">
+  <form class="box" id="loginForm">
+    <h2>Вход для администрации</h2>
+    <div class="fld"><label>Логин</label><input id="lLogin" autocomplete="username" autocapitalize="off" required></div>
+    <div class="fld"><label>Пароль</label><input id="lPass" type="password" autocomplete="current-password" required></div>
+    <div class="err" id="lErr"></div>
+    <div class="acts"><button type="button" class="btn" data-close>Отмена</button><button class="btn pri" id="lBtn">Войти</button></div>
+  </form>
+</div>
+
+<!-- Студент -->
+<div class="modal" id="mEdit">
+  <form class="box" id="editForm">
+    <h2 id="eTitle">Студент</h2>
+    <div class="fld"><label>ФИО (рус.) *</label><input name="ФИО" required></div>
+    <div class="fld"><label>ФИО (лат.)</label><input name="ФИО (лат.)"></div>
+    <div class="two">
+      <div class="fld"><label>Группа *</label><input name="Группа" placeholder="01-1-26" required list="grpList"></div>
+      <div class="fld"><label>Статус оплаты</label>
+        <select name="Статус оплаты"><option>Не оплатил</option><option>Оплатил</option></select></div>
+    </div>
+    <datalist id="grpList"></datalist>
+    <div class="two">
+      <div class="fld"><label>Курс</label><input name="Курс" inputmode="numeric"></div>
+      <div class="fld"><label>Семестр</label><input name="Семестр" inputmode="numeric"></div>
+    </div>
+    <div class="two">
+      <div class="fld"><label>ИНН / паспорт</label><input name="ИНН / паспорт"></div>
+      <div class="fld"><label>Дата рождения</label><input name="Дата рождения" placeholder="дд.мм.гггг"></div>
+    </div>
+    <div class="two">
+      <div class="fld"><label>Email</label><input name="Email" type="email"></div>
+      <div class="fld"><label>Пол</label><select name="Пол"><option value=""></option><option>муж</option><option>жен</option></select></div>
+    </div>
+    <div class="fld"><label><input type="checkbox" name="Проверить" style="width:auto;margin-right:6px">⚠ Требует проверки</label></div>
+    <div class="fld"><label>Примечание</label><textarea name="Примечание" rows="2"></textarea></div>
+    <div class="err" id="eErr"></div>
+    <div class="acts"><button type="button" class="btn" data-close>Отмена</button><button class="btn pri" id="eBtn">Сохранить</button></div>
+  </form>
+</div>
+
+<div class="toast" id="toast"><span id="tMsg"></span><button id="tUndo" hidden>Отменить</button></div>
+
+<script>
+/* ===== НАСТРОЙКИ ===== */
+const API = 'https://script.google.com/macros/s/AKfycbyqJC2PIfXBbbQ2pQyaeYMv3Qpv_hCGsC2UH3TnBUM1YVynHzW9hrGFZ4fTDB6lGNCi/exec';
+const PAGE = 150;            // сколько строк показывать сразу
+const PUBLIC_SHORT = false;  // true — на публичной странице «Фамилия И.»
+
+/* ===== СОСТОЯНИЕ ===== */
+let all = [];                // [{id,name,lat,grp,course,sem,paid,raw}]
+let token = store('get', 'tok');
+let user = store('get', 'usr') || '';
+const st = { q: '', sem: '', grp: '', status: 'all', check: false, sort: 'grp', shown: PAGE };
+const $ = s => document.querySelector(s);
+const isAdmin = () => !!token;
+
+function store(op, k, v) { try { if (op === 'get') return sessionStorage.getItem(k); if (op === 'set') sessionStorage.setItem(k, v); else sessionStorage.removeItem(k); } catch (e) { return null; } }
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const norm = s => String(s || '').toLowerCase().replace(/ё/g, 'е').replace(/\s+/g, ' ').trim();
+const TR = {а:'a',б:'b',в:'v',г:'g',д:'d',е:'e',ё:'e',ж:'j',з:'z',и:'i',й:'y',к:'k',л:'l',м:'m',н:'n',о:'o',п:'p',р:'r',с:'s',т:'t',у:'u',ф:'f',х:'h',ц:'ts',ч:'ch',ш:'sh',щ:'sh',ъ:'',ы:'y',ь:'',э:'e',ю:'yu',я:'ya'};
+const translit = s => norm(s).replace(/дж/g, 'j').split('').map(c => TR[c] ?? c).join('');
+// «фонетика»: Jadhav = Джадхав, Shaikh = Шейх и т.п.
+function phon(s) {
+  let t = translit(s).replace(/[^a-z ]/g, '');
+  [['dzh','j'],['zh','j'],['ph','f'],['sh','s'],['ch','c'],['kh','k'],['th','t'],['dh','d'],['bh','b'],['gh','g'],['ee','i'],['oo','u'],['w','v'],['y','i'],['q','k'],['x','ks'],['z','s'],['ey','e'],['ai','e'],['ei','e']]
+    .forEach(([a, b]) => t = t.split(a).join(b));
+  return t.replace(/h/g, '').replace(/(.)\1+/g, '$1').replace(/\s+/g, ' ').trim();
+}
+
+async function api(action, data = {}) {
+  const r = await fetch(API, { method: 'POST', body: JSON.stringify({ action, token, ...data }) });
+  const j = await r.json();
+  if (!j.ok && j.auth) { logout(true); }
+  if (!j.ok) throw new Error(j.error || 'Ошибка');
+  return j;
+}
+
+/* ===== ЗАГРУЗКА ===== */
+async function load() {
+  $('#list').innerHTML = '<div class="loader"><div class="spin"></div></div>';
+  try {
+    if (isAdmin()) {
+      const j = await api('adminList');
+      all = j.students.map(s => ({ id: s['ID'], name: s['ФИО'], lat: s['ФИО (лат.)'], grp: s['Группа'], course: s['Курс'], sem: s['Семестр'], paid: s['Статус оплаты'] === 'Оплатил', check: s['Проверить'] === 'Да', raw: s }));
+    } else {
+      const r = await fetch(API + '?action=list'); const j = await r.json();
+      if (!j.ok) throw new Error(j.error);
+      all = j.students.map(s => ({ id: s.i, name: s.n, lat: s.l, grp: s.g, course: s.c, sem: s.s, paid: !!s.p }));
+    }
+    all.forEach(s => { s._q = norm(s.name + ' ' + s.lat + ' ' + s.id); s._p = phon(s.name) + ' | ' + phon(s.lat); });
+    fillSelects(); render();
+  } catch (e) {
+    $('#list').innerHTML = `<div class="empty">Не удалось загрузить данные.<br><small>${esc(e.message)}</small><br><br><button class="more" onclick="load()">Повторить</button></div>`;
+  }
+}
+
+function fillSelects() {
+  const sems = [...new Set(all.map(s => s.sem + '|' + s.course))].sort((a, b) => +a.split('|')[0] - +b.split('|')[0]);
+  $('#fSem').innerHTML = '<option value="">Все семестры</option>' + sems.map(x => { const [s, c] = x.split('|'); return `<option value="${esc(s)}">${esc(c)} курс · ${esc(s)} семестр</option>`; }).join('');
+  $('#fSem').value = st.sem; fillGroups();
+  $('#grpList').innerHTML = [...new Set(all.map(s => s.grp))].sort().map(g => `<option value="${esc(g)}">`).join('');
+}
+function fillGroups() {
+  const gs = [...new Set(all.filter(s => !st.sem || String(s.sem) === st.sem).map(s => s.grp))].sort(grpCmp);
+  if (st.grp && !gs.includes(st.grp)) st.grp = '';
+  $('#fGrp').innerHTML = '<option value="">Все группы</option>' + gs.map(g => `<option>${esc(g)}</option>`).join('');
+  $('#fGrp').value = st.grp;
+}
+function grpCmp(a, b) { const pa = a.split('-'), pb = b.split('-'); return (pb[2] || '').localeCompare(pa[2] || '') || (pa[1] || '').localeCompare(pb[1] || '') || (+pa[0] - +pb[0]); }
+
+/* ===== ОТРИСОВКА ===== */
+function filtered(ignoreStatus) {
+  const q = norm(st.q);
+  return all.filter(s =>
+    (!st.sem || String(s.sem) === st.sem) &&
+    (!st.grp || s.grp === st.grp) &&
+    (ignoreStatus || st.status === 'all' || (st.status === 'p') === s.paid) &&
+    (!st.check || s.check) &&
+    (!q || q.split(' ').every(w => s._q.includes(w) || (phon(w).length > 1 && s._p.includes(phon(w))))));
+}
+
+function shortName(n) { const p = n.split(' '); return p.length > 1 ? p[0] + ' ' + p.slice(1).map(x => x[0] + '.').join(' ') : n; }
+
+function render() {
+  document.body.classList.toggle('admin', isAdmin());
+  document.querySelectorAll('.adm').forEach(el => el.hidden = !isAdmin());
+  $('#authBtn').textContent = isAdmin() ? 'Выйти' : 'Вход';
+  $('#who').textContent = isAdmin() ? user : '';
+
+  const base = filtered(true);
+  const p = base.filter(s => s.paid).length;
+  $('#sAll').textContent = base.length; $('#sP').textContent = p; $('#sU').textContent = base.length - p;
+  $('#barI').style.width = base.length ? (p / base.length * 100) + '%' : 0;
+  document.querySelectorAll('.stat').forEach(el => el.classList.toggle('on', el.dataset.f === st.status));
+  document.querySelectorAll('#fStatus button').forEach(b => b.classList.toggle('on', b.dataset.v === st.status));
+  $('#fCheck').classList.toggle('on', st.check);
+
+  let rows = filtered(false);
+  rows.sort(st.sort === 'name'
+    ? (a, b) => a.name.localeCompare(b.name, 'ru')
+    : (a, b) => (+a.sem - +b.sem) || grpCmp(a.grp, b.grp) || a.name.localeCompare(b.name, 'ru'));
+  $('#count').textContent = `Показано: ${Math.min(rows.length, st.shown)} из ${rows.length}`;
+  if (!rows.length) { $('#list').innerHTML = '<div class="empty">Никого не найдено</div>'; return; }
+
+  const grpStats = {};
+  if (st.sort === 'grp') rows.forEach(s => { const g = grpStats[s.grp] ||= { t: 0, p: 0 }; g.t++; if (s.paid) g.p++; });
+  let html = '', lastG = null;
+  rows.slice(0, st.shown).forEach(s => {
+    if (st.sort === 'grp' && s.grp !== lastG) {
+      lastG = s.grp; const g = grpStats[s.grp];
+      html += `<div class="grp"><span>${esc(s.grp)} · ${esc(s.course)} курс</span><span>${g.p}/${g.t} оплатили</span></div>`;
+    }
+    const nm = (!isAdmin() && PUBLIC_SHORT) ? shortName(s.name) : s.name;
+    const subParts = [st.sort === 'name' ? s.grp : '', s.lat, isAdmin() ? s.id : ''].filter(Boolean);
+    html += `<div class="row ${s.paid ? 'p' : 'u'}" data-id="${esc(s.id)}">
+      <span class="dot"></span>
+      <div class="nm"><b>${esc(nm)}${s.check ? '<span class="warn">⚠</span>' : ''}</b><small>${esc(subParts.join(' · '))}</small></div>
+      <span class="badge">${s.paid ? 'Оплатил' : 'Не оплатил'}</span>
+      ${isAdmin() ? `<button class="pay" data-act="pay">${s.paid ? 'Снять оплату' : '✓ Оплатил'}</button><button class="edit" data-act="edit" title="Редактировать">✎</button>` : ''}
+    </div>`;
+  });
+  if (rows.length > st.shown) html += `<button class="more" id="moreBtn">Показать ещё (${rows.length - st.shown})</button>`;
+  $('#list').innerHTML = html;
+}
+
+/* ===== ДЕЙСТВИЯ АДМИНА ===== */
+async function setPaid(s, paid, btn, silent) {
+  const prev = s.paid; s.paid = paid; render();
+  try {
+    await api('setStatus', { id: s.id, status: paid ? 'Оплатил' : 'Не оплатил' });
+    if (s.raw) s.raw['Статус оплаты'] = paid ? 'Оплатил' : 'Не оплатил';
+    if (!silent) toast(`${s.name}: ${paid ? 'оплатил ✓' : 'не оплатил'}`, () => setPaid(s, prev, null, true));
+  } catch (e) { s.paid = prev; render(); toast('Ошибка: ' + e.message); }
+}
+
+function openEdit(s) {
+  const f = $('#editForm'); f.reset(); $('#eErr').textContent = '';
+  $('#eTitle').textContent = s ? 'Редактировать · ' + s.id : 'Новый студент';
+  f.dataset.id = s ? s.id : '';
+  const raw = s ? s.raw : { 'Статус оплаты': 'Не оплатил', 'Группа': st.grp, 'Семестр': st.sem, 'Курс': st.sem ? (all.find(x => String(x.sem) === st.sem) || {}).course : '' };
+  [...f.elements].forEach(el => {
+    if (!el.name) return;
+    if (el.type === 'checkbox') el.checked = raw[el.name] === 'Да';
+    else el.value = raw[el.name] ?? '';
+  });
+  show('#mEdit'); setTimeout(() => f.elements['ФИО'].focus(), 50);
+}
+
+$('#editForm').addEventListener('submit', async e => {
+  e.preventDefault();
+  const f = e.target, data = {};
+  [...f.elements].forEach(el => { if (el.name) data[el.name] = el.type === 'checkbox' ? (el.checked ? 'Да' : '') : el.value.trim(); });
+  if (f.dataset.id) data['ID'] = f.dataset.id;
+  $('#eBtn').disabled = true; $('#eErr').textContent = '';
+  try {
+    const j = await api('save', { student: data });
+    hide('#mEdit'); toast(f.dataset.id ? 'Сохранено' : 'Добавлен ' + j.id); load();
+  } catch (err) { $('#eErr').textContent = err.message; }
+  $('#eBtn').disabled = false;
+});
+
+/* ===== ВХОД / ВЫХОД ===== */
+$('#authBtn').onclick = () => isAdmin() ? logout() : (show('#mLogin'), $('#lErr').textContent = '', setTimeout(() => $('#lLogin').focus(), 50));
+$('#loginForm').addEventListener('submit', async e => {
+  e.preventDefault(); $('#lBtn').disabled = true; $('#lErr').textContent = '';
+  try {
+    const j = await api('login', { login: $('#lLogin').value, password: $('#lPass').value });
+    token = j.token; user = j.name; store('set', 'tok', token); store('set', 'usr', user);
+    $('#lPass').value = ''; hide('#mLogin'); load();
+  } catch (err) { $('#lErr').textContent = err.message; }
+  $('#lBtn').disabled = false;
+});
+function logout(expired) {
+  token = null; user = ''; store('del', 'tok'); store('del', 'usr'); st.check = false;
+  if (expired) toast('Сессия истекла — войдите заново');
+  load();
+}
+
+/* ===== UI ===== */
+function show(s) { $(s).classList.add('show'); }
+function hide(s) { $(s).classList.remove('show'); }
+document.querySelectorAll('.modal').forEach(m => m.addEventListener('click', e => { if (e.target === m || e.target.hasAttribute('data-close')) m.classList.remove('show'); }));
+
+let tTimer;
+function toast(msg, undo) {
+  $('#tMsg').textContent = msg; $('#tUndo').hidden = !undo;
+  $('#tUndo').onclick = () => { $('#toast').classList.remove('show'); undo && undo(); };
+  $('#toast').classList.add('show'); clearTimeout(tTimer);
+  tTimer = setTimeout(() => $('#toast').classList.remove('show'), undo ? 6000 : 3000);
+}
+
+const upd = () => { st.shown = PAGE; render(); };
+let qT; $('#q').addEventListener('input', e => { clearTimeout(qT); qT = setTimeout(() => { st.q = e.target.value; upd(); }, 150); });
+$('#fSem').onchange = e => { st.sem = e.target.value; fillGroups(); upd(); };
+$('#fGrp').onchange = e => { st.grp = e.target.value; upd(); };
+$('#sort').onchange = e => { st.sort = e.target.value; upd(); };
+$('#fStatus').onclick = e => { const b = e.target.closest('button'); if (b) { st.status = b.dataset.v; upd(); } };
+document.querySelectorAll('.stat').forEach(el => el.onclick = () => { st.status = el.dataset.f; upd(); });
+$('#fCheck').onclick = () => { st.check = !st.check; upd(); };
+$('#addBtn').onclick = () => openEdit(null);
+$('#reset').onclick = () => { Object.assign(st, { q: '', sem: '', grp: '', status: 'all', check: false }); $('#q').value = ''; $('#fSem').value = ''; fillGroups(); upd(); };
+$('#list').addEventListener('click', e => {
+  if (e.target.id === 'moreBtn') { st.shown += PAGE * 2; render(); return; }
+  const b = e.target.closest('[data-act]'); if (!b) return;
+  const s = all.find(x => x.id === b.closest('.row').dataset.id); if (!s) return;
+  if (b.dataset.act === 'pay') setPaid(s, !s.paid, b);
+  if (b.dataset.act === 'edit') openEdit(s);
+});
+document.addEventListener('keydown', e => { if (e.key === 'Escape') document.querySelectorAll('.modal.show').forEach(m => m.classList.remove('show')); });
+
+load();
+</script>
+</body>
+</html>
