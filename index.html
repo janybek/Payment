@@ -106,11 +106,12 @@ select{padding:9px 10px;border:1px solid var(--line);border-radius:10px;backgrou
 <header>
   <div class="wrap hrow">
     <div>
-      <h1>Оплата контракта</h1>
-      <div class="sub" id="sub">Студенты кампуса · 2026–2027</div>
+      <h1 data-i="title">Оплата контракта</h1>
+      <div class="sub" data-i="sub">Студенты кампуса · 2026–2027</div>
     </div>
     <div style="display:flex;align-items:center">
       <span class="who" id="who"></span>
+      <button class="hbtn" id="langBtn" style="margin-right:6px">RU</button>
       <button class="hbtn" id="authBtn">Вход</button>
     </div>
   </div>
@@ -118,44 +119,44 @@ select{padding:9px 10px;border:1px solid var(--line);border-radius:10px;backgrou
 
 <main class="wrap">
   <div class="stats">
-    <div class="stat" data-f="all"><b id="sAll">—</b><span>Всего</span></div>
-    <div class="stat ok" data-f="p"><b id="sP">—</b><span>Оплатили</span></div>
-    <div class="stat bad" data-f="u"><b id="sU">—</b><span>Не оплатили</span></div>
+    <div class="stat" data-f="all"><b id="sAll">—</b><span data-i="all">Всего</span></div>
+    <div class="stat ok" data-f="p"><b id="sP">—</b><span data-i="paidPl">Оплатили</span></div>
+    <div class="stat bad" data-f="u"><b id="sU">—</b><span data-i="unpaidPl">Не оплатили</span></div>
   </div>
   <div class="bar"><i id="barI" style="width:0"></i></div>
 
   <div class="filters">
     <div class="search">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
-      <input id="q" type="search" placeholder="Поиск по ФИО (рус. или англ.)" autocomplete="off">
+      <input id="q" type="search" data-ip="search" placeholder="Поиск по ФИО (рус. или англ.)" autocomplete="off">
     </div>
     <select id="fSem"><option value="">Все семестры</option></select>
     <select id="fGrp"><option value="">Все группы</option></select>
     <div class="seg" id="fStatus">
-      <button data-v="all" class="on">Все</button>
-      <button data-v="p">🟢 Оплатили</button>
-      <button data-v="u">🔴 Не оплатили</button>
+      <button data-v="all" class="on" data-i="segAll">Все</button>
+      <button data-v="p" data-i="segP">🟢 Оплатили</button>
+      <button data-v="u" data-i="segU">🔴 Не оплатили</button>
     </div>
-    <button class="chip adm" id="fCheck" hidden>⚠ Проверить</button>
+    <button class="chip adm" id="fCheck" hidden data-i="check">⚠ Проверить</button>
     <select id="sort">
-      <option value="grp">↕ По группам</option>
-      <option value="name">↕ По ФИО (А–Я)</option>
+      <option value="grp" data-i="sortGrp">↕ По группам</option>
+      <option value="name" data-i="sortName">↕ По ФИО (А–Я)</option>
     </select>
-    <button class="addbtn adm" id="addBtn" hidden>+ Студент</button>
+    <button class="addbtn adm" id="addBtn" hidden data-i="add">+ Студент</button>
   </div>
 
-  <div class="meta"><span id="count"></span><a id="reset">Сбросить фильтры</a></div>
+  <div class="meta"><span id="count"></span><a id="reset" data-i="reset">Сбросить фильтры</a></div>
   <div id="list" class="list"><div class="loader"><div class="spin"></div></div></div>
 </main>
 
 <!-- Вход -->
 <div class="modal" id="mLogin">
   <form class="box" id="loginForm">
-    <h2>Вход для администрации</h2>
-    <div class="fld"><label>Логин</label><input id="lLogin" autocomplete="username" autocapitalize="off" required></div>
-    <div class="fld"><label>Пароль</label><input id="lPass" type="password" autocomplete="current-password" required></div>
+    <h2 data-i="loginTitle">Вход для администрации</h2>
+    <div class="fld"><label data-i="login">Логин</label><input id="lLogin" autocomplete="username" autocapitalize="off" required></div>
+    <div class="fld"><label data-i="pass">Пароль</label><input id="lPass" type="password" autocomplete="current-password" required></div>
     <div class="err" id="lErr"></div>
-    <div class="acts"><button type="button" class="btn" data-close>Отмена</button><button class="btn pri" id="lBtn">Войти</button></div>
+    <div class="acts"><button type="button" class="btn" data-close data-i="cancel">Отмена</button><button class="btn pri" id="lBtn" data-i="enter">Войти</button></div>
   </form>
 </div>
 
@@ -197,6 +198,35 @@ select{padding:9px 10px;border:1px solid var(--line);border-radius:10px;backgrou
 const API = 'https://script.google.com/macros/s/AKfycbyqJC2PIfXBbbQ2pQyaeYMv3Qpv_hCGsC2UH3TnBUM1YVynHzW9hrGFZ4fTDB6lGNCi/exec';
 const PAGE = 150;            // сколько строк показывать сразу
 const PUBLIC_SHORT = false;  // true — на публичной странице «Фамилия И.»
+
+/* ===== ЯЗЫК ===== */
+const L = {
+  ru: { title:'Оплата контракта', sub:'Студенты кампуса · 2026–2027', all:'Всего', paidPl:'Оплатили', unpaidPl:'Не оплатили',
+    search:'Поиск по ФИО (рус. или англ.)', segAll:'Все', segP:'🟢 Оплатили', segU:'🔴 Не оплатили', check:'⚠ Проверить',
+    sortGrp:'↕ По группам', sortName:'↕ По ФИО (А–Я)', add:'+ Студент', reset:'Сбросить фильтры', loginTitle:'Вход для администрации',
+    login:'Логин', pass:'Пароль', cancel:'Отмена', enter:'Войти', in:'Вход', out:'Выйти', allSem:'Все семестры', allGrp:'Все группы',
+    semOpt:(c,s)=>`${c} курс · ${s} сем.`, course:c=>`${c} курс`, grpPaid:(p,n)=>`${p}/${n} оплатили`,
+    shown:(a,b)=>`Показано: ${a} из ${b}`, none:'Никого не найдено', more:n=>`Показать ещё (${n})`, paid:'Оплатил', unpaid:'Не оплатил',
+    markPaid:'✓ Оплатил', unmark:'Снять оплату', loadErr:'Не удалось загрузить данные.', retry:'Повторить', undo:'Отменить',
+    expired:'Сессия истекла — войдите заново', saved:'Сохранено', added:id=>'Добавлен '+id, err:'Ошибка: ', lang:'EN' },
+  en: { title:'Contract Payment', sub:'Campus students · 2026–2027', all:'Total', paidPl:'Paid', unpaidPl:'Not paid',
+    search:'Search by name (English or Russian)', segAll:'All', segP:'🟢 Paid', segU:'🔴 Not paid', check:'⚠ To check',
+    sortGrp:'↕ By group', sortName:'↕ By name (A–Z)', add:'+ Student', reset:'Reset filters', loginTitle:'Staff login',
+    login:'Login', pass:'Password', cancel:'Cancel', enter:'Sign in', in:'Login', out:'Logout', allSem:'All semesters', allGrp:'All groups',
+    semOpt:(c,s)=>`Year ${c} · Sem ${s}`, course:c=>`Year ${c}`, grpPaid:(p,n)=>`${p}/${n} paid`,
+    shown:(a,b)=>`Showing ${a} of ${b}`, none:'No students found', more:n=>`Show more (${n})`, paid:'Paid', unpaid:'Not paid',
+    markPaid:'✓ Paid', unmark:'Unmark', loadErr:'Could not load data.', retry:'Retry', undo:'Undo',
+    expired:'Session expired — please sign in again', saved:'Saved', added:id=>'Added '+id, err:'Error: ', lang:'RU' }
+};
+let lang = (() => { try { return localStorage.getItem('lang') || 'en'; } catch (e) { return 'en'; } })();
+const t = k => L[lang][k];
+function applyLang() {
+  document.documentElement.lang = lang;
+  document.querySelectorAll('[data-i]').forEach(el => el.textContent = t(el.dataset.i));
+  document.querySelectorAll('[data-ip]').forEach(el => el.placeholder = t(el.dataset.ip));
+  document.querySelector('#langBtn').textContent = t('lang');
+  document.title = t('title');
+}
 
 /* ===== СОСТОЯНИЕ ===== */
 let all = [];                // [{id,name,lat,grp,course,sem,paid,raw}]
@@ -242,20 +272,20 @@ async function load() {
     all.forEach(s => { s._q = norm(s.name + ' ' + s.lat + ' ' + s.id); s._p = phon(s.name) + ' | ' + phon(s.lat); });
     fillSelects(); render();
   } catch (e) {
-    $('#list').innerHTML = `<div class="empty">Не удалось загрузить данные.<br><small>${esc(e.message)}</small><br><br><button class="more" onclick="load()">Повторить</button></div>`;
+    $('#list').innerHTML = `<div class="empty">${t('loadErr')}<br><small>${esc(e.message)}</small><br><br><button class="more" onclick="load()">${t('retry')}</button></div>`;
   }
 }
 
 function fillSelects() {
   const sems = [...new Set(all.map(s => s.sem + '|' + s.course))].sort((a, b) => +a.split('|')[0] - +b.split('|')[0]);
-  $('#fSem').innerHTML = '<option value="">Все семестры</option>' + sems.map(x => { const [s, c] = x.split('|'); return `<option value="${esc(s)}">${esc(c)} курс · ${esc(s)} семестр</option>`; }).join('');
+  $('#fSem').innerHTML = `<option value="">${t('allSem')}</option>` + sems.map(x => { const [s, c] = x.split('|'); return `<option value="${esc(s)}">${esc(t('semOpt')(c, s))}</option>`; }).join('');
   $('#fSem').value = st.sem; fillGroups();
   $('#grpList').innerHTML = [...new Set(all.map(s => s.grp))].sort().map(g => `<option value="${esc(g)}">`).join('');
 }
 function fillGroups() {
   const gs = [...new Set(all.filter(s => !st.sem || String(s.sem) === st.sem).map(s => s.grp))].sort(grpCmp);
   if (st.grp && !gs.includes(st.grp)) st.grp = '';
-  $('#fGrp').innerHTML = '<option value="">Все группы</option>' + gs.map(g => `<option>${esc(g)}</option>`).join('');
+  $('#fGrp').innerHTML = `<option value="">${t('allGrp')}</option>` + gs.map(g => `<option>${esc(g)}</option>`).join('');
   $('#fGrp').value = st.grp;
 }
 function grpCmp(a, b) { const pa = a.split('-'), pb = b.split('-'); return (pb[2] || '').localeCompare(pa[2] || '') || (pa[1] || '').localeCompare(pb[1] || '') || (+pa[0] - +pb[0]); }
@@ -271,12 +301,13 @@ function filtered(ignoreStatus) {
     (!q || q.split(' ').every(w => s._q.includes(w) || (phon(w).length > 1 && s._p.includes(phon(w))))));
 }
 
+const disp = s => (lang === 'en' && s.lat) ? s.lat : s.name;
 function shortName(n) { const p = n.split(' '); return p.length > 1 ? p[0] + ' ' + p.slice(1).map(x => x[0] + '.').join(' ') : n; }
 
 function render() {
   document.body.classList.toggle('admin', isAdmin());
   document.querySelectorAll('.adm').forEach(el => el.hidden = !isAdmin());
-  $('#authBtn').textContent = isAdmin() ? 'Выйти' : 'Вход';
+  $('#authBtn').textContent = isAdmin() ? t('out') : t('in');
   $('#who').textContent = isAdmin() ? user : '';
 
   const base = filtered(true);
@@ -289,10 +320,10 @@ function render() {
 
   let rows = filtered(false);
   rows.sort(st.sort === 'name'
-    ? (a, b) => a.name.localeCompare(b.name, 'ru')
-    : (a, b) => (+a.sem - +b.sem) || grpCmp(a.grp, b.grp) || a.name.localeCompare(b.name, 'ru'));
-  $('#count').textContent = `Показано: ${Math.min(rows.length, st.shown)} из ${rows.length}`;
-  if (!rows.length) { $('#list').innerHTML = '<div class="empty">Никого не найдено</div>'; return; }
+    ? (a, b) => disp(a).localeCompare(disp(b), lang)
+    : (a, b) => (+a.sem - +b.sem) || grpCmp(a.grp, b.grp) || disp(a).localeCompare(disp(b), lang));
+  $('#count').textContent = t('shown')(Math.min(rows.length, st.shown), rows.length);
+  if (!rows.length) { $('#list').innerHTML = `<div class="empty">${t('none')}</div>`; return; }
 
   const grpStats = {};
   if (st.sort === 'grp') rows.forEach(s => { const g = grpStats[s.grp] ||= { t: 0, p: 0 }; g.t++; if (s.paid) g.p++; });
@@ -300,18 +331,19 @@ function render() {
   rows.slice(0, st.shown).forEach(s => {
     if (st.sort === 'grp' && s.grp !== lastG) {
       lastG = s.grp; const g = grpStats[s.grp];
-      html += `<div class="grp"><span>${esc(s.grp)} · ${esc(s.course)} курс</span><span>${g.p}/${g.t} оплатили</span></div>`;
+      html += `<div class="grp"><span>${esc(s.grp)} · ${esc(t('course')(s.course))}</span><span>${t('grpPaid')(g.p, g.t)}</span></div>`;
     }
-    const nm = (!isAdmin() && PUBLIC_SHORT) ? shortName(s.name) : s.name;
-    const subParts = [st.sort === 'name' ? s.grp : '', s.lat, isAdmin() ? s.id : ''].filter(Boolean);
+    const main = disp(s), second = lang === 'en' ? (s.lat ? s.name : '') : s.lat;
+    const nm = (!isAdmin() && PUBLIC_SHORT) ? shortName(main) : main;
+    const subParts = [st.sort === 'name' ? s.grp : '', second, isAdmin() ? s.id : ''].filter(Boolean);
     html += `<div class="row ${s.paid ? 'p' : 'u'}" data-id="${esc(s.id)}">
       <span class="dot"></span>
       <div class="nm"><b>${esc(nm)}${s.check ? '<span class="warn">⚠</span>' : ''}</b><small>${esc(subParts.join(' · '))}</small></div>
-      <span class="badge">${s.paid ? 'Оплатил' : 'Не оплатил'}</span>
-      ${isAdmin() ? `<button class="pay" data-act="pay">${s.paid ? 'Снять оплату' : '✓ Оплатил'}</button><button class="edit" data-act="edit" title="Редактировать">✎</button>` : ''}
+      <span class="badge">${s.paid ? t('paid') : t('unpaid')}</span>
+      ${isAdmin() ? `<button class="pay" data-act="pay">${s.paid ? t('unmark') : t('markPaid')}</button><button class="edit" data-act="edit" title="Редактировать">✎</button>` : ''}
     </div>`;
   });
-  if (rows.length > st.shown) html += `<button class="more" id="moreBtn">Показать ещё (${rows.length - st.shown})</button>`;
+  if (rows.length > st.shown) html += `<button class="more" id="moreBtn">${t('more')(rows.length - st.shown)}</button>`;
   $('#list').innerHTML = html;
 }
 
@@ -321,8 +353,8 @@ async function setPaid(s, paid, btn, silent) {
   try {
     await api('setStatus', { id: s.id, status: paid ? 'Оплатил' : 'Не оплатил' });
     if (s.raw) s.raw['Статус оплаты'] = paid ? 'Оплатил' : 'Не оплатил';
-    if (!silent) toast(`${s.name}: ${paid ? 'оплатил ✓' : 'не оплатил'}`, () => setPaid(s, prev, null, true));
-  } catch (e) { s.paid = prev; render(); toast('Ошибка: ' + e.message); }
+    if (!silent) toast(`${disp(s)}: ${paid ? t('paid') + ' ✓' : t('unpaid')}`, () => setPaid(s, prev, null, true));
+  } catch (e) { s.paid = prev; render(); toast(t('err') + e.message); }
 }
 
 function openEdit(s) {
@@ -346,7 +378,7 @@ $('#editForm').addEventListener('submit', async e => {
   $('#eBtn').disabled = true; $('#eErr').textContent = '';
   try {
     const j = await api('save', { student: data });
-    hide('#mEdit'); toast(f.dataset.id ? 'Сохранено' : 'Добавлен ' + j.id); load();
+    hide('#mEdit'); toast(f.dataset.id ? t('saved') : t('added')(j.id)); load();
   } catch (err) { $('#eErr').textContent = err.message; }
   $('#eBtn').disabled = false;
 });
@@ -364,7 +396,7 @@ $('#loginForm').addEventListener('submit', async e => {
 });
 function logout(expired) {
   token = null; user = ''; store('del', 'tok'); store('del', 'usr'); st.check = false;
-  if (expired) toast('Сессия истекла — войдите заново');
+  if (expired) toast(t('expired'));
   load();
 }
 
@@ -376,6 +408,7 @@ document.querySelectorAll('.modal').forEach(m => m.addEventListener('click', e =
 let tTimer;
 function toast(msg, undo) {
   $('#tMsg').textContent = msg; $('#tUndo').hidden = !undo;
+  $('#tUndo').textContent = t('undo');
   $('#tUndo').onclick = () => { $('#toast').classList.remove('show'); undo && undo(); };
   $('#toast').classList.add('show'); clearTimeout(tTimer);
   tTimer = setTimeout(() => $('#toast').classList.remove('show'), undo ? 6000 : 3000);
@@ -390,6 +423,7 @@ $('#fStatus').onclick = e => { const b = e.target.closest('button'); if (b) { st
 document.querySelectorAll('.stat').forEach(el => el.onclick = () => { st.status = el.dataset.f; upd(); });
 $('#fCheck').onclick = () => { st.check = !st.check; upd(); };
 $('#addBtn').onclick = () => openEdit(null);
+$('#langBtn').onclick = () => { lang = lang === 'en' ? 'ru' : 'en'; try { localStorage.setItem('lang', lang); } catch (e) {} applyLang(); fillSelects(); render(); };
 $('#reset').onclick = () => { Object.assign(st, { q: '', sem: '', grp: '', status: 'all', check: false }); $('#q').value = ''; $('#fSem').value = ''; fillGroups(); upd(); };
 $('#list').addEventListener('click', e => {
   if (e.target.id === 'moreBtn') { st.shown += PAGE * 2; render(); return; }
@@ -400,6 +434,7 @@ $('#list').addEventListener('click', e => {
 });
 document.addEventListener('keydown', e => { if (e.key === 'Escape') document.querySelectorAll('.modal.show').forEach(m => m.classList.remove('show')); });
 
+applyLang();
 load();
 </script>
 </body>
