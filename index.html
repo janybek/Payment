@@ -84,6 +84,8 @@ select{padding:9px 10px;border:1px solid var(--line);border-radius:10px;backgrou
 .acts{display:flex;gap:8px;justify-content:flex-end;margin-top:14px}
 .btn{border:1px solid var(--line);background:#fff;border-radius:10px;padding:10px 16px;cursor:pointer}
 .btn.pri{background:var(--brand);color:#fff;border-color:var(--brand);font-weight:600}
+.btn.del{color:var(--bad);border-color:#f3c2c7}
+.btn.del.arm{background:var(--bad);color:#fff;border-color:var(--bad);font-weight:600}
 .err{color:var(--bad);font-size:13.5px;min-height:18px;margin-top:4px}
 
 .toast span{flex:1}
@@ -187,7 +189,7 @@ select{padding:9px 10px;border:1px solid var(--line);border-radius:10px;backgrou
     <div class="fld"><label><input type="checkbox" name="Проверить" style="width:auto;margin-right:6px">⚠ Требует проверки</label></div>
     <div class="fld"><label>Примечание</label><textarea name="Примечание" rows="2"></textarea></div>
     <div class="err" id="eErr"></div>
-    <div class="acts"><button type="button" class="btn" data-close>Отмена</button><button class="btn pri" id="eBtn">Сохранить</button></div>
+    <div class="acts"><button type="button" class="btn del" id="dBtn" hidden>🗑 Удалить</button><span style="flex:1"></span><button type="button" class="btn" data-close>Отмена</button><button class="btn pri" id="eBtn">Сохранить</button></div>
   </form>
 </div>
 
@@ -208,7 +210,7 @@ const L = {
     semOpt:(c,s)=>`${c} курс · ${s} сем.`, course:c=>`${c} курс`, grpPaid:(p,n)=>`${p}/${n} оплатили`,
     shown:(a,b)=>`Показано: ${a} из ${b}`, none:'Никого не найдено', more:n=>`Показать ещё (${n})`, paid:'Оплатил', unpaid:'Не оплатил',
     markPaid:'✓ Оплатил', unmark:'Снять оплату', loadErr:'Не удалось загрузить данные.', retry:'Повторить', undo:'Отменить',
-    expired:'Сессия истекла — войдите заново', saved:'Сохранено', added:id=>'Добавлен '+id, err:'Ошибка: ', lang:'EN' },
+    expired:'Сессия истекла — войдите заново', saved:'Сохранено', del:'🗑 Удалить', delSure:'Точно удалить?', deleted:n=>'Удалён: '+n, added:id=>'Добавлен '+id, err:'Ошибка: ', lang:'EN' },
   en: { title:'Contract Payment', sub:'Campus students · 2026–2027', all:'Total', paidPl:'Paid', unpaidPl:'Not paid',
     search:'Search by name (English or Russian)', segAll:'All', segP:'🟢 Paid', segU:'🔴 Not paid', check:'⚠ To check',
     sortGrp:'↕ By group', sortName:'↕ By name (A–Z)', add:'+ Student', reset:'Reset filters', loginTitle:'Staff login',
@@ -216,7 +218,7 @@ const L = {
     semOpt:(c,s)=>`Year ${c} · Sem ${s}`, course:c=>`Year ${c}`, grpPaid:(p,n)=>`${p}/${n} paid`,
     shown:(a,b)=>`Showing ${a} of ${b}`, none:'No students found', more:n=>`Show more (${n})`, paid:'Paid', unpaid:'Not paid',
     markPaid:'✓ Paid', unmark:'Unmark', loadErr:'Could not load data.', retry:'Retry', undo:'Undo',
-    expired:'Session expired — please sign in again', saved:'Saved', added:id=>'Added '+id, err:'Error: ', lang:'RU' }
+    expired:'Session expired — please sign in again', saved:'Saved', del:'🗑 Delete', delSure:'Delete for sure?', deleted:n=>'Deleted: '+n, added:id=>'Added '+id, err:'Error: ', lang:'RU' }
 };
 let lang = (() => { try { return localStorage.getItem('lang') || 'en'; } catch (e) { return 'en'; } })();
 const t = k => L[lang][k];
@@ -367,6 +369,7 @@ function openEdit(s) {
     if (el.type === 'checkbox') el.checked = raw[el.name] === 'Да';
     else el.value = raw[el.name] ?? '';
   });
+  const d = $('#dBtn'); d.hidden = !s; d.classList.remove('arm'); d.textContent = t('del'); d.disabled = false;
   show('#mEdit'); setTimeout(() => f.elements['ФИО'].focus(), 50);
 }
 
@@ -382,6 +385,23 @@ $('#editForm').addEventListener('submit', async e => {
   } catch (err) { $('#eErr').textContent = err.message; }
   $('#eBtn').disabled = false;
 });
+
+let dTimer;
+$('#dBtn').onclick = async () => {
+  const d = $('#dBtn'), id = $('#editForm').dataset.id;
+  if (!id) return;
+  if (!d.classList.contains('arm')) {            // первый клик — подтверждение
+    d.classList.add('arm'); d.textContent = t('delSure');
+    clearTimeout(dTimer); dTimer = setTimeout(() => { d.classList.remove('arm'); d.textContent = t('del'); }, 4000);
+    return;
+  }
+  clearTimeout(dTimer); d.disabled = true; $('#eErr').textContent = '';
+  try {
+    const s = all.find(x => x.id === id);
+    await api('delete', { id });
+    hide('#mEdit'); toast(t('deleted')(s ? disp(s) : id)); load();
+  } catch (err) { $('#eErr').textContent = err.message; d.disabled = false; d.classList.remove('arm'); d.textContent = t('del'); }
+};
 
 /* ===== ВХОД / ВЫХОД ===== */
 $('#authBtn').onclick = () => isAdmin() ? logout() : (show('#mLogin'), $('#lErr').textContent = '', setTimeout(() => $('#lLogin').focus(), 50));

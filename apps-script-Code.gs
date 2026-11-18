@@ -34,6 +34,7 @@ function handle_(p) {
       case 'adminList': auth_(p.token); return { ok: true, students: readAll_().rows };
       case 'setStatus': return setStatus_(auth_(p.token), p.id, p.status);
       case 'save':      return save_(auth_(p.token), p.student || {});
+      case 'delete':    return delete_(auth_(p.token), p.id);
       default:          return { ok: false, error: 'Неизвестное действие' };
     }
   } catch (err) {
@@ -152,6 +153,9 @@ function save_(user, st) {
     if (!data['Статус оплаты']) data['Статус оплаты'] = 'Не оплатил';
     let max = 0;
     db.rows.forEach(x => { const m = /^S(\d+)$/.exec(x['ID']); if (m) max = Math.max(max, +m[1]); });
+    const bin = SpreadsheetApp.getActive().getSheetByName('Удалённые');   // не выдавать ID удалённых повторно
+    if (bin && bin.getLastRow() > 1) bin.getRange(2, 3, bin.getLastRow() - 1, 1).getValues()
+      .forEach(r => { const m = /^S(\d+)$/.exec(r[0]); if (m) max = Math.max(max, +m[1]); });
     const id = 'S' + String(max + 1).padStart(4, '0');
     const row = db.headers.map(h => {
       if (h === 'ID') return id;
@@ -161,6 +165,29 @@ function save_(user, st) {
     });
     db.sh.appendRow(row);
     log_(user, 'Добавлен', id, data['ФИО'], '', data['Группа'] + ', ' + data['Статус оплаты']);
+    return { ok: true, id: id };
+  });
+}
+
+/** Удаление: строка переносится на лист «Удалённые» (можно вернуть вручную). */
+function delete_(user, id) {
+  if (!id) throw new Error('Не указан студент');
+  return withLock_(() => {
+    const db = readAll_();
+    const s = db.rows.find(x => x['ID'] === id);
+    if (!s) throw new Error('Студент ' + id + ' не найден');
+    const ss = SpreadsheetApp.getActive();
+    let bin = ss.getSheetByName('Удалённые');
+    if (!bin) {
+      bin = ss.insertSheet('Удалённые');
+      bin.appendRow(['Удалено', 'Кем удалено'].concat(db.headers));
+      bin.getRange(1, 1, 1, db.headers.length + 2).setFontWeight('bold');
+      bin.setFrozenRows(1);
+    }
+    const rowVals = db.sh.getRange(s._row, 1, 1, db.headers.length).getValues()[0];
+    bin.appendRow([now_(), user.n].concat(rowVals));
+    db.sh.deleteRow(s._row);
+    log_(user, 'Удалён', id, s['ФИО'], s['Группа'] + ', ' + s['Статус оплаты'], 'перенесён на лист «Удалённые»');
     return { ok: true, id: id };
   });
 }
