@@ -84,6 +84,7 @@ select{padding:9px 10px;border:1px solid var(--line);border-radius:10px;backgrou
 .acts{display:flex;gap:8px;justify-content:flex-end;margin-top:14px}
 .btn{border:1px solid var(--line);background:#fff;border-radius:10px;padding:10px 16px;cursor:pointer}
 .btn.pri{background:var(--brand);color:#fff;border-color:var(--brand);font-weight:600}
+.chip.delmany{color:var(--bad);border-color:#f3c2c7;background:#fff}
 .btn.del{color:var(--bad);border-color:#f3c2c7}
 .btn.del.arm{background:var(--bad);color:#fff;border-color:var(--bad);font-weight:600}
 .err{color:var(--bad);font-size:13.5px;min-height:18px;margin-top:4px}
@@ -145,6 +146,7 @@ select{padding:9px 10px;border:1px solid var(--line);border-radius:10px;backgrou
       <option value="name" data-i="sortName">↕ По ФИО (А–Я)</option>
     </select>
     <button class="addbtn adm" id="addBtn" hidden data-i="add">+ Студент</button>
+    <button class="chip delmany" id="delManyBtn" hidden></button>
   </div>
 
   <div class="meta"><span id="count"></span><a id="reset" data-i="reset">Сбросить фильтры</a></div>
@@ -193,6 +195,17 @@ select{padding:9px 10px;border:1px solid var(--line);border-radius:10px;backgrou
   </form>
 </div>
 
+<!-- Массовое удаление -->
+<div class="modal" id="mDel">
+  <form class="box" id="delForm">
+    <h2 id="dmTitle"></h2>
+    <p id="dmText" style="margin:0 0 12px;color:var(--muted)"></p>
+    <div class="fld"><label id="dmLabel"></label><input id="dmInput" autocomplete="off" autocapitalize="off"></div>
+    <div class="err" id="dmErr"></div>
+    <div class="acts"><button type="button" class="btn" data-close data-i="cancel">Отмена</button><button class="btn del arm" id="dmBtn" disabled></button></div>
+  </form>
+</div>
+
 <div class="toast" id="toast"><span id="tMsg"></span><button id="tUndo" hidden>Отменить</button></div>
 
 <script>
@@ -210,7 +223,7 @@ const L = {
     semOpt:(c,s)=>`${c} курс · ${s} сем.`, course:c=>`${c} курс`, grpPaid:(p,n)=>`${p}/${n} оплатили`,
     shown:(a,b)=>`Показано: ${a} из ${b}`, none:'Никого не найдено', more:n=>`Показать ещё (${n})`, paid:'Оплатил', unpaid:'Не оплатил',
     markPaid:'✓ Оплатил', unmark:'Снять оплату', loadErr:'Не удалось загрузить данные.', retry:'Повторить', undo:'Отменить',
-    expired:'Сессия истекла — войдите заново', saved:'Сохранено', del:'🗑 Удалить', delSure:'Точно удалить?', deleted:n=>'Удалён: '+n, added:id=>'Добавлен '+id, err:'Ошибка: ', lang:'EN' },
+    expired:'Сессия истекла — войдите заново', saved:'Сохранено', del:'🗑 Удалить', delSure:'Точно удалить?', deleted:n=>'Удалён: '+n, delGrp:(g,n)=>`🗑 Удалить группу ${g} (${n})`, delSem:(s,n)=>`🗑 Удалить ${s} семестр (${n})`, delGrpSem:(g,s,n)=>`🗑 Удалить группу ${g}, ${s} сем. (${n})`, dmTitle:'Массовое удаление', dmText:n=>`Будет удалено студентов: ${n}. Они перенесутся на лист «Удалённые» в таблице — оттуда их можно вернуть вручную.`, dmLabel:w=>`Для подтверждения введите: ${w}`, dmBtn:n=>`Удалить ${n}`, dmDone:n=>`Удалено: ${n}`, added:id=>'Добавлен '+id, err:'Ошибка: ', lang:'EN' },
   en: { title:'Contract Payment', sub:'Campus students · 2026–2027', all:'Total', paidPl:'Paid', unpaidPl:'Not paid',
     search:'Search by name (English or Russian)', segAll:'All', segP:'🟢 Paid', segU:'🔴 Not paid', check:'⚠ To check',
     sortGrp:'↕ By group', sortName:'↕ By name (A–Z)', add:'+ Student', reset:'Reset filters', loginTitle:'Staff login',
@@ -218,7 +231,7 @@ const L = {
     semOpt:(c,s)=>`Year ${c} · Sem ${s}`, course:c=>`Year ${c}`, grpPaid:(p,n)=>`${p}/${n} paid`,
     shown:(a,b)=>`Showing ${a} of ${b}`, none:'No students found', more:n=>`Show more (${n})`, paid:'Paid', unpaid:'Not paid',
     markPaid:'✓ Paid', unmark:'Unmark', loadErr:'Could not load data.', retry:'Retry', undo:'Undo',
-    expired:'Session expired — please sign in again', saved:'Saved', del:'🗑 Delete', delSure:'Delete for sure?', deleted:n=>'Deleted: '+n, added:id=>'Added '+id, err:'Error: ', lang:'RU' }
+    expired:'Session expired — please sign in again', saved:'Saved', del:'🗑 Delete', delSure:'Delete for sure?', deleted:n=>'Deleted: '+n, delGrp:(g,n)=>`🗑 Delete group ${g} (${n})`, delSem:(s,n)=>`🗑 Delete semester ${s} (${n})`, delGrpSem:(g,s,n)=>`🗑 Delete group ${g}, sem ${s} (${n})`, dmTitle:'Bulk delete', dmText:n=>`${n} students will be deleted. They will be moved to the «Удалённые» sheet in the spreadsheet and can be restored manually.`, dmLabel:w=>`To confirm, type: ${w}`, dmBtn:n=>`Delete ${n}`, dmDone:n=>`Deleted: ${n}`, added:id=>'Added '+id, err:'Error: ', lang:'RU' }
 };
 let lang = (() => { try { return localStorage.getItem('lang') || 'en'; } catch (e) { return 'en'; } })();
 const t = k => L[lang][k];
@@ -319,6 +332,9 @@ function render() {
   document.querySelectorAll('.stat').forEach(el => el.classList.toggle('on', el.dataset.f === st.status));
   document.querySelectorAll('#fStatus button').forEach(b => b.classList.toggle('on', b.dataset.v === st.status));
   $('#fCheck').classList.toggle('on', st.check);
+  const dm = $('#delManyBtn'), scope = all.filter(s => (!st.sem || String(s.sem) === st.sem) && (!st.grp || s.grp === st.grp));
+  dm.hidden = !isAdmin() || (!st.sem && !st.grp) || !scope.length;
+  if (!dm.hidden) dm.textContent = st.grp && st.sem ? t('delGrpSem')(st.grp, st.sem, scope.length) : st.grp ? t('delGrp')(st.grp, scope.length) : t('delSem')(st.sem, scope.length);
 
   let rows = filtered(false);
   rows.sort(st.sort === 'name'
@@ -402,6 +418,26 @@ $('#dBtn').onclick = async () => {
     hide('#mEdit'); toast(t('deleted')(s ? disp(s) : id)); load();
   } catch (err) { $('#eErr').textContent = err.message; d.disabled = false; d.classList.remove('arm'); d.textContent = t('del'); }
 };
+
+let dmWord = '', dmScope = {};
+$('#delManyBtn').onclick = () => {
+  dmScope = { group: st.grp, semester: st.sem };
+  const n = all.filter(s => (!st.sem || String(s.sem) === st.sem) && (!st.grp || s.grp === st.grp)).length;
+  dmWord = st.grp || st.sem;
+  $('#dmTitle').textContent = t('dmTitle'); $('#dmText').textContent = t('dmText')(n);
+  $('#dmLabel').textContent = t('dmLabel')(dmWord); $('#dmInput').value = ''; $('#dmErr').textContent = '';
+  $('#dmBtn').textContent = t('dmBtn')(n); $('#dmBtn').disabled = true;
+  show('#mDel'); setTimeout(() => $('#dmInput').focus(), 50);
+};
+$('#dmInput').oninput = e => { $('#dmBtn').disabled = e.target.value.trim() !== dmWord; };
+$('#delForm').addEventListener('submit', async e => {
+  e.preventDefault(); if ($('#dmInput').value.trim() !== dmWord) return;
+  $('#dmBtn').disabled = true; $('#dmErr').textContent = '';
+  try {
+    const j = await api('deleteMany', dmScope);
+    hide('#mDel'); st.grp = ''; st.sem = ''; toast(t('dmDone')(j.count)); load();
+  } catch (err) { $('#dmErr').textContent = err.message; $('#dmBtn').disabled = false; }
+});
 
 /* ===== ВХОД / ВЫХОД ===== */
 $('#authBtn').onclick = () => isAdmin() ? logout() : (show('#mLogin'), $('#lErr').textContent = '', setTimeout(() => $('#lLogin').focus(), 50));

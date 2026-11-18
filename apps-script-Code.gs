@@ -35,6 +35,7 @@ function handle_(p) {
       case 'setStatus': return setStatus_(auth_(p.token), p.id, p.status);
       case 'save':      return save_(auth_(p.token), p.student || {});
       case 'delete':    return delete_(auth_(p.token), p.id);
+      case 'deleteMany': return deleteMany_(auth_(p.token), p.group, p.semester);
       default:          return { ok: false, error: 'Неизвестное действие' };
     }
   } catch (err) {
@@ -176,19 +177,53 @@ function delete_(user, id) {
     const db = readAll_();
     const s = db.rows.find(x => x['ID'] === id);
     if (!s) throw new Error('Студент ' + id + ' не найден');
-    const ss = SpreadsheetApp.getActive();
-    let bin = ss.getSheetByName('Удалённые');
-    if (!bin) {
-      bin = ss.insertSheet('Удалённые');
-      bin.appendRow(['Удалено', 'Кем удалено'].concat(db.headers));
-      bin.getRange(1, 1, 1, db.headers.length + 2).setFontWeight('bold');
-      bin.setFrozenRows(1);
-    }
+    const bin = binSheet_(db.headers);
     const rowVals = db.sh.getRange(s._row, 1, 1, db.headers.length).getValues()[0];
     bin.appendRow([now_(), user.n].concat(rowVals));
     db.sh.deleteRow(s._row);
     log_(user, 'Удалён', id, s['ФИО'], s['Группа'] + ', ' + s['Статус оплаты'], 'перенесён на лист «Удалённые»');
     return { ok: true, id: id };
+  });
+}
+
+function binSheet_(headers) {
+  const ss = SpreadsheetApp.getActive();
+  let bin = ss.getSheetByName('Удалённые');
+  if (!bin) {
+    bin = ss.insertSheet('Удалённые');
+    bin.appendRow(['Удалено', 'Кем удалено'].concat(headers));
+    bin.getRange(1, 1, 1, headers.length + 2).setFontWeight('bold');
+    bin.setFrozenRows(1);
+  }
+  return bin;
+}
+
+/** Массовое удаление: вся группа и/или весь семестр. Строки уходят на лист «Удалённые». */
+function deleteMany_(user, group, semester) {
+  group = String(group || '').trim(); semester = String(semester || '').trim();
+  if (!group && !semester) throw new Error('Не выбрана группа или семестр');
+  return withLock_(() => {
+    const db = readAll_();
+    const width = db.headers.length;
+    const last = db.sh.getLastRow();
+    if (last < 2) throw new Error('Список пуст');
+    const vals = db.sh.getRange(2, 1, last - 1, width).getValues();
+    const disp = db.sh.getRange(2, 1, last - 1, width).getDisplayValues();
+    const cG = db.col['Группа'], cS = db.col['Семестр'], cId = db.col['ID'];
+    const hit = r => disp[r][cId] && (!group || disp[r][cG] === group) && (!semester || String(disp[r][cS]) === semester);
+    const keep = [], gone = [];
+    vals.forEach((row, r) => (hit(r) ? gone : keep).push(row));
+    if (!gone.length) throw new Error('Никого не найдено для удаления');
+    const stamp = now_();
+    const bin = binSheet_(db.headers);
+    bin.getRange(bin.getLastRow() + 1, 1, gone.length, width + 2)
+       .setValues(gone.map(row => [stamp, user.n].concat(row)));
+    // перезаписываем лист без удалённых строк
+    if (keep.length) db.sh.getRange(2, 1, keep.length, width).setValues(keep);
+    db.sh.getRange(2 + keep.length, 1, gone.length, width).clearContent();
+    const what = [group ? 'группа ' + group : '', semester ? 'семестр ' + semester : ''].filter(String).join(', ');
+    log_(user, 'Удалено массово', '', what, gone.length + ' студ.', 'перенесены на лист «Удалённые»');
+    return { ok: true, count: gone.length };
   });
 }
 
