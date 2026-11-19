@@ -315,6 +315,10 @@ const L = {
     dl:(d,n)=>`⏰ Срок оплаты: ${d} · осталось ${n} дн.`, dlToday:d=>`⏰ Срок оплаты: сегодня (${d})`, dlLate:d=>`⛔ Срок оплаты истёк ${d}`,
     paidOn:d=>`оплатил ${d}`, stTitle:'Статистика оплаты', stBySem:'По семестрам', stByGrp:g=>`По группам${g ? ' · ' + g : ''}`, stDays:'Отметки оплаты за 14 дней',
     stSem:'Семестр', stGrp:'Группа', stTot:'Всего', stPaid:'Оплатили', stPct:'%', close:'Закрыть', noDates:'Пока нет отметок с датой',
+    statXls:'⬇ Скачать статистику', sxTotal:'ИТОГО', sxFile:'Статистика',
+    sxS1:'Страховка по семестрам', sxS2:'Страховка по группам', sxS3:'Оплата по семестрам', sxS4:'Оплата по группам',
+    sxInsHead:by=>[by === 'sem' ? 'Семестр' : 'Группа', ...(by === 'grp' ? ['Семестр'] : []), 'Всего', 'Страховка оплачена', 'Действует', 'Истекает ≤30 дн.', 'Нет / истекла', '% застрахованы'],
+    sxPayHead:by=>[by === 'sem' ? 'Семестр' : 'Группа', ...(by === 'grp' ? ['Семестр'] : []), 'Всего', 'Оплатили', 'Не оплатили', '% оплаты'],
     tabPay:'💳 Оплата контракта', tabIns:'🛡 Медстраховка', segSoon:'⚠ Истекает', segNone:'❌ Нет',
     insOk:d=>`🛡 до ${d}`, insSoon:(d,n)=>`⚠ страховка истекает через ${n} дн. (${d})`, insNone:'❌ нет страховки', insLate:d=>`❌ страховка истекла ${d}`,
     insStat:'Медстраховка', insRec:'В списке', insValid:'Действует', insSoonL:'Истекает ≤30 дн.', insNoneL:'Нет / истекла',
@@ -334,6 +338,10 @@ const L = {
     dl:(d,n)=>`⏰ Payment deadline: ${d} · ${n} days left`, dlToday:d=>`⏰ Payment deadline: today (${d})`, dlLate:d=>`⛔ Payment deadline passed on ${d}`,
     paidOn:d=>`paid ${d}`, stTitle:'Payment statistics', stBySem:'By semester', stByGrp:g=>`By group${g ? ' · ' + g : ''}`, stDays:'Payments marked in last 14 days',
     stSem:'Semester', stGrp:'Group', stTot:'Total', stPaid:'Paid', stPct:'%', close:'Close', noDates:'No dated payments yet',
+    statXls:'⬇ Download statistics', sxTotal:'TOTAL', sxFile:'Statistics',
+    sxS1:'Insurance by semester', sxS2:'Insurance by group', sxS3:'Payment by semester', sxS4:'Payment by group',
+    sxInsHead:by=>[by === 'sem' ? 'Semester' : 'Group', ...(by === 'grp' ? ['Semester'] : []), 'Total', 'Insurance paid', 'Valid', 'Expires ≤30 days', 'None / expired', '% insured'],
+    sxPayHead:by=>[by === 'sem' ? 'Semester' : 'Group', ...(by === 'grp' ? ['Semester'] : []), 'Total', 'Paid', 'Not paid', '% paid'],
     tabPay:'💳 Contract payment', tabIns:'🛡 Medical insurance', segSoon:'⚠ Expiring', segNone:'❌ None',
     insOk:d=>`🛡 until ${d}`, insSoon:(d,n)=>`⚠ insurance expires in ${n} days (${d})`, insNone:'❌ no insurance', insLate:d=>`❌ insurance expired ${d}`,
     insStat:'Medical insurance', insRec:'Listed', insValid:'Valid', insSoonL:'Expires ≤30 days', insNoneL:'None / expired',
@@ -723,8 +731,48 @@ $('#statsBtn').onclick = () => {
   h += cnt.some(Boolean)
     ? `<div class="days">${cnt.map(c => `<div style="height:${c / mx * 100}%"><span>${c || ''}</span></div>`).join('')}</div><div class="dlab">${days.map(d => `<span>${d.slice(0, 2)}</span>`).join('')}</div>`
     : `<p style="color:var(--muted)">${t('noDates')}</p>`;
-  h += `<div class="acts"><button class="btn pri" data-close>${t('close')}</button></div>`;
+  h += `<div class="acts">${isEditor() ? `<button class="btn" id="statXls">${t('statXls')}</button>` : ''}<button class="btn pri" data-close>${t('close')}</button></div>`;
   $('#statsBox').innerHTML = h; show('#mStats');
+  const sx = $('#statXls'); if (sx) sx.onclick = exportStats;
+};
+
+/* ===== ВЫГРУЗКА СТАТИСТИКИ (только деканат) ===== */
+async function exportStats() {
+  if (!isEditor()) return;
+  const pct = (a, b) => b ? Math.round(a / b * 100) : 0;
+  const keyName = { sem: s => t('semOpt')(s.course, s.sem), grp: s => s.grp };
+  function insTable(by) {
+    const m = {};
+    all.forEach(s => {
+      const k = by === 'sem' ? s.sem : s.grp;
+      const x = m[k] ||= { label: keyName[by](s), sem: +s.sem, grp: s.grp, t: 0, p: 0, ok: 0, soon: 0, none: 0 };
+      x.t++; if (s.insPaid) x.p++; x[insState(s)]++;
+    });
+    const rows = Object.values(m).sort((a, b) => by === 'sem' ? a.sem - b.sem : (a.sem - b.sem) || grpCmp(a.grp, b.grp));
+    const tot = rows.reduce((a, x) => ({ t: a.t + x.t, p: a.p + x.p, ok: a.ok + x.ok, soon: a.soon + x.soon, none: a.none + x.none }), { t: 0, p: 0, ok: 0, soon: 0, none: 0 });
+    return [t('sxInsHead')(by), ...rows.map(x => [x.label, ...(by === 'grp' ? [x.sem] : []), x.t, x.p, x.ok, x.soon, x.none, pct(x.ok + x.soon, x.t) + '%']),
+            [t('sxTotal'), ...(by === 'grp' ? [''] : []), tot.t, tot.p, tot.ok, tot.soon, tot.none, pct(tot.ok + tot.soon, tot.t) + '%']];
+  }
+  function payTable(by) {
+    const m = {};
+    all.forEach(s => { const k = by === 'sem' ? s.sem : s.grp; const x = m[k] ||= { label: keyName[by](s), sem: +s.sem, grp: s.grp, t: 0, p: 0 }; x.t++; if (s.paid) x.p++; });
+    const rows = Object.values(m).sort((a, b) => by === 'sem' ? a.sem - b.sem : (a.sem - b.sem) || grpCmp(a.grp, b.grp));
+    const T = rows.reduce((a, x) => ({ t: a.t + x.t, p: a.p + x.p }), { t: 0, p: 0 });
+    return [t('sxPayHead')(by), ...rows.map(x => [x.label, ...(by === 'grp' ? [x.sem] : []), x.t, x.p, x.t - x.p, pct(x.p, x.t) + '%']),
+            [t('sxTotal'), ...(by === 'grp' ? [''] : []), T.t, T.p, T.t - T.p, pct(T.p, T.t) + '%']];
+  }
+  const sheets = [[t('sxS1'), insTable('sem')], [t('sxS2'), insTable('grp')], [t('sxS3'), payTable('sem')], [t('sxS4'), payTable('grp')]];
+  const name = t('sxFile') + '_' + todayStr();
+  try {
+    const X = await loadXLSX();
+    const wb = X.utils.book_new();
+    sheets.forEach(([n, d]) => { const ws = X.utils.aoa_to_sheet(d); ws['!cols'] = d[0].map((_, i) => ({ wch: i === 0 ? 22 : 14 })); X.utils.book_append_sheet(wb, ws, n.slice(0, 31)); });
+    X.writeFile(wb, name + '.xlsx');
+  } catch (e) {                      // запасной вариант — CSV (одна таблица под другой)
+    const csv = '\ufeff' + sheets.map(([n, d]) => [[n], ...d].map(r => r.map(v => '"' + String(v ?? '').replace(/"/g, '""') + '"').join(';')).join('\r\n')).join('\r\n\r\n');
+    const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' })); a.download = name + '.csv'; a.click();
+  }
+
 };
 $('#addBtn').onclick = () => openEdit(null);
 $('#langBtn').onclick = () => { lang = lang === 'en' ? 'ru' : 'en'; try { localStorage.setItem('lang', lang); } catch (e) {} applyLang(); fillSelects(); render(); };
