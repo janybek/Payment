@@ -131,6 +131,15 @@ body.bulk main{padding-bottom:90px}
 .ins-ok{color:var(--ok)}.ins-soon{color:var(--warn);font-weight:600}.ins-none{color:var(--bad);font-weight:600}
 fieldset.insf{border:1px solid var(--line);border-radius:12px;padding:10px 12px 2px;margin:4px 0 10px}
 fieldset.insf legend{font-size:13px;font-weight:700;padding:0 6px}
+.lead-b{font-size:12px;background:var(--warn-bg);color:var(--warn);border-radius:6px;padding:1px 6px;margin-left:6px;font-weight:600;white-space:nowrap}
+.row .nm b.lead{font-weight:800}
+fieldset.leadf{border:1px solid #f0d58a;background:#fffbea;border-radius:12px;padding:10px 12px 4px;margin:4px 0 10px}
+fieldset.leadf legend{font-size:13px;font-weight:700;padding:0 6px;color:var(--warn)}
+.hist{margin-top:10px;border-top:1px solid var(--line);padding-top:8px;font-size:12.5px;color:var(--muted);max-height:180px;overflow:auto}
+.hist div{padding:3px 0;border-bottom:1px dashed #edf0f3}
+.hist b{color:var(--ink);font-weight:600}
+.lockd{opacity:.55}
+.passbox{font-family:ui-monospace,Menlo,monospace;font-size:24px;letter-spacing:3px;background:#f2f4f7;border-radius:10px;padding:10px;text-align:center;margin:8px 0}
 @media(max-width:560px){
   h1{font-size:16px}
   .logo img{height:26px}
@@ -264,9 +273,26 @@ fieldset.insf legend{font-size:13px;font-weight:700;padding:0 6px}
       </div>
     </fieldset>
     <div class="fld"><label>Примечание</label><textarea name="Примечание" rows="2"></textarea></div>
+    <fieldset class="leadf" id="leadSet" hidden><legend>★ Староста группы</legend>
+      <label style="display:flex;gap:8px;align-items:center;margin-bottom:8px"><input type="checkbox" id="lOn" style="width:auto"> <span>Назначить старостой</span></label>
+      <div class="fld"><label>Gmail старосты (логин для входа)</label><input id="lMail" type="email" placeholder="name@gmail.com" autocapitalize="off"></div>
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:6px"><small id="lState" style="color:var(--muted)"></small><button type="button" class="btn" id="lReset" hidden>🔄 Новый пароль</button></div>
+    </fieldset>
+    <div class="hist" id="eHist" hidden></div>
     <div class="err" id="eErr"></div>
     <div class="acts"><button type="button" class="btn del" id="dBtn" hidden>🗑 Удалить</button><span style="flex:1"></span><button type="button" class="btn" data-close>Отмена</button><button class="btn pri" id="eBtn">Сохранить</button></div>
   </form>
+</div>
+
+<!-- Пароль старосты (показывается один раз) -->
+<div class="modal" id="mPass">
+  <div class="box" style="text-align:center">
+    <h2 style="margin-bottom:4px">Логин старосты готов</h2>
+    <p style="color:var(--muted);margin:0">Логин: <b id="pMail"></b></p>
+    <div class="passbox" id="pPass"></div>
+    <p style="color:var(--muted);font-size:13px;margin:0 0 6px">Пароль показывается только сейчас — скопируйте и передайте старосте.</p>
+    <div class="acts" style="justify-content:center"><button type="button" class="btn" id="pCopy">📋 Копировать</button><button type="button" class="btn pri" data-close>Готово</button></div>
+  </div>
 </div>
 
 <!-- Массовое удаление -->
@@ -317,7 +343,7 @@ const L = {
   ru: { title:'Оплата контракта', sub:'Студенты кампуса · 2026–2027', all:'Всего', paidPl:'Оплатили', unpaidPl:'Не оплатили',
     search:'Поиск по номеру студ. билета', searchAdm:'Поиск по ФИО или номеру билета', noNum:'Без № билета', enr:n=>'№ '+n, sortNum:'↕ По номеру', segAll:'Все', segP:'🟢 Оплатили', segU:'🔴 Не оплатили', check:'⚠ Проверить',
     sortGrp:'↕ По группам', sortName:'↕ По ФИО (А–Я)', add:'+ Студент', reset:'Сбросить фильтры', loginTitle:'Вход для администрации',
-    login:'Логин (или телефон для старост)', pass:'Пароль', cancel:'Отмена', enter:'Войти', in:'Вход', out:'Выйти', allSem:'Все семестры', allGrp:'Все группы',
+    login:'Логин (старосты — свой Gmail)', pass:'Пароль', cancel:'Отмена', enter:'Войти', in:'Вход', out:'Выйти', allSem:'Все семестры', allGrp:'Все группы',
     semOpt:(c,s)=>`${c} курс · ${s} сем.`, course:c=>`${c} курс`, grpPaid:(p,n)=>`${p}/${n} оплатили`,
     shown:(a,b)=>`Показано: ${a} из ${b}`, none:'Никого не найдено', more:n=>`Показать ещё (${n})`, paid:'Оплатил', unpaid:'Не оплатил',
     markPaid:'✓ Оплатил', unmark:'Снять оплату', loadErr:'Не удалось загрузить данные.', retry:'Повторить', undo:'Отменить',
@@ -333,6 +359,7 @@ const L = {
     sxInsHead:by=>[by === 'sem' ? 'Семестр' : 'Группа', ...(by === 'grp' ? ['Семестр'] : []), 'Всего', 'Страховка оплачена', 'Действует', 'Истекает ≤30 дн.', 'Нет / истекла', '% застрахованы'],
     sxPayHead:by=>[by === 'sem' ? 'Семестр' : 'Группа', ...(by === 'grp' ? ['Семестр'] : []), 'Всего', 'Оплатили', 'Не оплатили', '% оплаты'],
     iUntil:'Страховка до (дд.мм.гггг)', iPaid:'Оплата страховки', iNoneL:'Страховки нет', iSave:'Сохранить',
+    leaderB:'староста',
     tabPay:'💳 Оплата контракта', tabIns:'🛡 Медстраховка', segSoon:'⚠ Истекает', segNone:'❌ Нет',
     insOk:d=>`🛡 до ${d}`, insSoon:(d,n)=>`⚠ страховка истекает через ${n} дн. (${d})`, insNone:'❌ нет страховки', insLate:d=>`❌ страховка истекла ${d}`,
     insStat:'Медстраховка', insRec:'В списке', insValid:'Действует', insSoonL:'Истекает ≤30 дн.', insNoneL:'Нет / истекла',
@@ -341,7 +368,7 @@ const L = {
   en: { title:'Contract Payment', sub:'Campus students · 2026–2027', all:'Total', paidPl:'Paid', unpaidPl:'Not paid',
     search:'Search by enrollment number', searchAdm:'Search by name or enrollment number', noNum:'No enrollment №', enr:n=>'№ '+n, sortNum:'↕ By number', segAll:'All', segP:'🟢 Paid', segU:'🔴 Not paid', check:'⚠ To check',
     sortGrp:'↕ By group', sortName:'↕ By name (A–Z)', add:'+ Student', reset:'Reset filters', loginTitle:'Staff login',
-    login:'Login (or phone for group leaders)', pass:'Password', cancel:'Cancel', enter:'Sign in', in:'Login', out:'Logout', allSem:'All semesters', allGrp:'All groups',
+    login:'Login (group leaders — your Gmail)', pass:'Password', cancel:'Cancel', enter:'Sign in', in:'Login', out:'Logout', allSem:'All semesters', allGrp:'All groups',
     semOpt:(c,s)=>`Year ${c} · Sem ${s}`, course:c=>`Year ${c}`, grpPaid:(p,n)=>`${p}/${n} paid`,
     shown:(a,b)=>`Showing ${a} of ${b}`, none:'No students found', more:n=>`Show more (${n})`, paid:'Paid', unpaid:'Not paid',
     markPaid:'✓ Paid', unmark:'Unmark', loadErr:'Could not load data.', retry:'Retry', undo:'Undo',
@@ -357,6 +384,7 @@ const L = {
     sxInsHead:by=>[by === 'sem' ? 'Semester' : 'Group', ...(by === 'grp' ? ['Semester'] : []), 'Total', 'Insurance paid', 'Valid', 'Expires ≤30 days', 'None / expired', '% insured'],
     sxPayHead:by=>[by === 'sem' ? 'Semester' : 'Group', ...(by === 'grp' ? ['Semester'] : []), 'Total', 'Paid', 'Not paid', '% paid'],
     iUntil:'Insurance valid until (dd.mm.yyyy)', iPaid:'Insurance payment', iNoneL:'No insurance', iSave:'Save',
+    leaderB:'group leader',
     tabPay:'💳 Contract payment', tabIns:'🛡 Medical insurance', segSoon:'⚠ Expiring', segNone:'❌ None',
     insOk:d=>`🛡 until ${d}`, insSoon:(d,n)=>`⚠ insurance expires in ${n} days (${d})`, insNone:'❌ no insurance', insLate:d=>`❌ insurance expired ${d}`,
     insStat:'Medical insurance', insRec:'Listed', insValid:'Valid', insSoonL:'Expires ≤30 days', insNoneL:'None / expired',
@@ -430,7 +458,7 @@ async function load() {
       const j = await api('adminList');
       if (j.role) { role = j.role; store('set', 'role', role); }
       deadline = j.deadline || '';
-      all = j.students.map(s => ({ id: s['ID'], enr: s['Номер студ. билета'] || '', name: s['ФИО'], lat: s['ФИО (лат.)'], grp: s['Группа'], course: s['Курс'], sem: s['Семестр'], paid: s['Статус оплаты'] === 'Оплатил', pdate: s['Дата оплаты'] || '', insUntil: String(s['Страховка до'] || '').replace(/^'/, ''), insPaid: s['Страховка оплата'] === 'Оплатил', hasIns: !!(s['Страховка до'] || s['Страховка оплата']), check: s['Проверить'] === 'Да', raw: s }));
+      all = j.students.map(s => ({ id: s['ID'], enr: s['Номер студ. билета'] || '', name: s['ФИО'], lat: s['ФИО (лат.)'], grp: s['Группа'], course: s['Курс'], sem: s['Семестр'], paid: s['Статус оплаты'] === 'Оплатил', pdate: s['Дата оплаты'] || '', insUntil: String(s['Страховка до'] || '').replace(/^'/, ''), insPaid: s['Страховка оплата'] === 'Оплатил', hasIns: !!(s['Страховка до'] || s['Страховка оплата']), check: s['Проверить'] === 'Да', leader: s['Староста'] === 'Да', raw: s }));
     } else {
       const r = await fetch(API + '?action=list'); const j = await r.json();
       if (!j.ok) throw new Error(j.error);
@@ -488,8 +516,8 @@ function render() {
   document.body.classList.toggle('admin', isEditor());
   document.querySelectorAll('.adm').forEach(el => el.hidden = !isEditor());
   document.querySelectorAll('.auth').forEach(el => el.hidden = !isAdmin());
-  if (!canEdit()) { st.selMode = false; st.sel.clear(); }
-  $('#selBtn').hidden = !canEdit();
+  if (!isEditor()) { st.selMode = false; st.sel.clear(); }
+  $('#selBtn').hidden = !isEditor();
   $('#statsBtn').hidden = isLeader();
   renderDeadline(); renderBulk();
   $('#authBtn').textContent = isAdmin() ? t('out') : t('in');
@@ -529,13 +557,13 @@ function render() {
     const nm = disp(s);
     const second = isAdmin() ? (lang === 'en' ? (s.lat ? s.name : '') : s.lat) : '';
     const subParts = [st.sort === 'name' ? s.grp : '', isAdmin() ? (s.enr ? t('enr')(s.enr) : '—') : '', second, isAdmin() ? s.id : '', !INS() && isAdmin() && s.paid && s.pdate ? t('paidOn')(s.pdate) : ''].filter(Boolean);
-    const sm = st.selMode && canEdit(), on = sm && st.sel.has(s.id);
+    const sm = st.selMode && isEditor(), on = sm && st.sel.has(s.id);
     const pd = P(s);
     html += `<div class="row ${pd ? 'p' : 'u'}${sm ? ' selmode' : ''}${on ? ' sel' : ''}" data-id="${esc(s.id)}">
       ${sm ? `<span class="ck">${on ? '✓' : ''}</span>` : '<span class="dot"></span>'}
-      <div class="nm"><b>${esc(nm)}${s.check ? '<span class="warn">⚠</span>' : ''}</b><small>${esc(subParts.join(' · '))}${INS() ? '<br>' + insText(s) : ''}</small></div>
+      <div class="nm"><b${isAdmin() && s.leader ? ' class="lead"' : ''}>${esc(nm)}${isAdmin() && s.leader ? '<span class="lead-b">★ ' + t('leaderB') + '</span>' : ''}${s.check ? '<span class="warn">⚠</span>' : ''}</b><small>${esc(subParts.join(' · '))}${INS() ? '<br>' + insText(s) : ''}</small></div>
       <span class="badge">${pd ? t('paid') : t('unpaid')}</span>
-      ${canEdit() && !sm ? `<button class="pay" data-act="pay">${pd ? t('unmark') : t('markPaid')}</button><button class="edit" data-act="edit" title="Редактировать">✎</button>` : ''}
+      ${isEditor() && !sm ? `<button class="pay" data-act="pay">${pd ? t('unmark') : t('markPaid')}</button>` : ''}${canEdit() && !sm ? `<button class="edit" data-act="edit" title="Редактировать">✎</button>` : ''}
     </div>`;
   });
   if (rows.length > st.shown) html += `<button class="more" id="moreBtn">${t('more')(rows.length - st.shown)}</button>`;
@@ -566,19 +594,68 @@ function openEdit(s) {
     if (el.type === 'checkbox') el.checked = raw[el.name] === 'Да';
     else el.value = raw[el.name] ?? '';
   });
-  const d = $('#dBtn'); d.hidden = !s; d.classList.remove('arm'); d.textContent = t('del'); d.disabled = false;
+  const d = $('#dBtn'); d.hidden = !s || !isEditor(); d.classList.remove('arm'); d.textContent = t('del'); d.disabled = false;
+  // староста: только личные данные, остальное под замком
+  [...f.elements].forEach(el => {
+    if (!el.name) return;
+    const lock = isLeader() && LEADER_EDIT.indexOf(el.name) < 0;
+    el.disabled = lock; const box = el.closest('.fld'); if (box) box.classList.toggle('lockd', lock);
+  });
+  f.elements['Статус оплаты'].closest('.fld').hidden = isLeader();   // оплату контракта староста не видит
+  // назначение старосты — только деканат
+  const ls = $('#leadSet'); ls.hidden = !isEditor() || !s;
+  if (!ls.hidden) {
+    const mail = (raw['Логин старосты'] || '').trim();
+    $('#lOn').checked = raw['Староста'] === 'Да'; $('#lMail').value = mail; $('#lMail').disabled = !$('#lOn').checked;
+    $('#lReset').hidden = !$('#lOn').checked || !mail;
+    $('#lState').textContent = $('#lOn').checked ? 'Вход активен · ' + (raw['Группа'] || '') : 'Не староста';
+    ls.dataset.was = $('#lOn').checked ? mail : '';
+  }
+  loadHistory(s);
   show('#mEdit'); setTimeout(() => f.elements['ФИО'].focus(), 50);
 }
+const LEADER_EDIT = ['ФИО', 'ФИО (лат.)', 'Email', 'Номер студ. билета', 'Пол', 'Дата рождения'];
+async function loadHistory(s) {
+  const h = $('#eHist'); h.hidden = true; h.innerHTML = '';
+  if (!s || !canEdit()) return;
+  try {
+    const j = await api('history', { id: s.id });
+    if (!j.items.length) return;
+    h.innerHTML = '<div><b>История изменений</b></div>' + j.items.map(x =>
+      `<div>${esc(x.when)} · <b>${esc(x.who)}</b> · ${esc(x.what)}${x.before || x.after ? ': ' + esc(x.before) + ' → ' + esc(x.after) : ''}</div>`).join('');
+    h.hidden = false;
+  } catch (e) {}
+}
+$('#lOn').onchange = e => { $('#lMail').disabled = !e.target.checked; if (e.target.checked) $('#lMail').focus(); };
+function showPass(mail, pass) { $('#pMail').textContent = mail; $('#pPass').textContent = pass; show('#mPass'); }
+$('#pCopy').onclick = () => { const txt = 'Сайт: ' + location.href.split('?')[0] + '\nЛогин: ' + $('#pMail').textContent + '\nПароль: ' + $('#pPass').textContent; try { navigator.clipboard.writeText(txt); toast('Скопировано'); } catch (e) {} };
+$('#lReset').onclick = async () => {
+  const id = $('#editForm').dataset.id, mail = $('#lMail').value.trim();
+  $('#lReset').disabled = true;
+  try { const j = await api('setLeader', { id, on: true, email: mail, reset: true }); hide('#mEdit'); showPass(j.email, j.password); load(); }
+  catch (e) { $('#eErr').textContent = e.message; }
+  $('#lReset').disabled = false;
+};
 
 $('#editForm').addEventListener('submit', async e => {
   e.preventDefault();
   const f = e.target, data = {};
-  [...f.elements].forEach(el => { if (el.name) data[el.name] = el.type === 'checkbox' ? (el.checked ? 'Да' : '') : el.value.trim(); });
+  [...f.elements].forEach(el => {
+    if (!el.name || (isLeader() && LEADER_EDIT.indexOf(el.name) < 0)) return;
+    data[el.name] = el.type === 'checkbox' ? (el.checked ? 'Да' : '') : el.value.trim();
+  });
   if (f.dataset.id) data['ID'] = f.dataset.id;
   $('#eBtn').disabled = true; $('#eErr').textContent = '';
   try {
     const j = await api('save', { student: data });
-    hide('#mEdit'); toast(f.dataset.id ? t('saved') : t('added')(j.id)); load();
+    let pass = null;
+    if (isEditor() && f.dataset.id && !$('#leadSet').hidden) {
+      const on = $('#lOn').checked, mail = $('#lMail').value.trim().toLowerCase(), was = $('#leadSet').dataset.was || '';
+      if (on !== !!was || (on && mail !== was)) pass = await api('setLeader', { id: f.dataset.id, on, email: mail });
+    }
+    hide('#mEdit'); toast(f.dataset.id ? t('saved') : t('added')(j.id));
+    if (pass && pass.password) showPass(pass.email, pass.password);
+    load();
   } catch (err) { $('#eErr').textContent = err.message; }
   $('#eBtn').disabled = false;
 });
@@ -694,7 +771,7 @@ $('#fDate').onchange = e => { st.date = e.target.value; if (st.date !== '') st.s
 /* ===== МАССОВЫЕ ДЕЙСТВИЯ ===== */
 function todayStr() { const d = new Date(); return String(d.getDate()).padStart(2, '0') + '.' + String(d.getMonth() + 1).padStart(2, '0') + '.' + d.getFullYear(); }
 function renderBulk() {
-  const on = st.selMode && canEdit();
+  const on = st.selMode && isEditor();
   document.body.classList.toggle('bulk', on);
   $('#bulkBar').hidden = !on;
   $('#selBtn').classList.toggle('on', on);
@@ -826,14 +903,14 @@ $('#langBtn').onclick = () => { lang = lang === 'en' ? 'ru' : 'en'; try { localS
 $('#reset').onclick = () => { Object.assign(st, { q: '', sem: '', grp: '', status: 'all', check: false, noNum: false, date: '' }); $('#fDate').value = ''; $('#q').value = ''; $('#fSem').value = ''; fillGroups(); upd(); };
 $('#list').addEventListener('click', e => {
   if (e.target.id === 'moreBtn') { st.shown += PAGE * 2; render(); return; }
-  if (st.selMode && canEdit()) {
+  if (st.selMode && isEditor()) {
     const row = e.target.closest('.row'); if (!row) return;
     const id = row.dataset.id; st.sel.has(id) ? st.sel.delete(id) : st.sel.add(id); render(); return;
   }
   const b = e.target.closest('[data-act]'); if (!b) return;
   const s = all.find(x => x.id === b.closest('.row').dataset.id); if (!s) return;
   if (b.dataset.act === 'pay') setPaid(s, !P(s), b);
-  if (b.dataset.act === 'edit') isLeader() ? openIns(s) : openEdit(s);
+  if (b.dataset.act === 'edit') openEdit(s);
 });
 document.addEventListener('keydown', e => { if (e.key === 'Escape') document.querySelectorAll('.modal.show').forEach(m => m.classList.remove('show')); });
 

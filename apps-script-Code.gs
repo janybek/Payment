@@ -13,6 +13,8 @@ const PAID_DATE = 'Дата оплаты';
 // Медстраховка — видна только деканату (не учителям и не на публичной странице)
 const INS_UNTIL = 'Страховка до';
 const INS_PAID = 'Страховка оплата';
+const LEADER_COL = 'Староста';
+const LEADER_LOGIN = 'Логин старосты';
 // Семестры, скрытые на публичной странице (админка видит всё)
 const HIDDEN_SEMESTERS = ['1'];
 const EDIT_FIELDS = [INS_UNTIL, INS_PAID, ENR, 'ФИО', 'ФИО (лат.)', 'Группа', 'Курс', 'Семестр', 'Статус оплаты',
@@ -39,14 +41,11 @@ function handle_(p) {
       case 'list':      return { ok: true, students: listPublic_(), deadline: deadline_() };
       case 'login':     return login_(p.login, p.password);
       case 'adminList': return adminList_(auth_(p.token));
-      case 'setStatus': return p.kind === 'ins'
-        ? setStatus_(insEditor_(p.token, [p.id]), p.id, p.status, 'ins')
-        : setStatus_(editor_(p.token), p.id, p.status, p.kind);
-      case 'setStatusMany': return p.kind === 'ins'
-        ? setStatusMany_(insEditor_(p.token, p.ids || []), p.ids || [], p.status, 'ins')
-        : setStatusMany_(editor_(p.token), p.ids || [], p.status, p.kind);
-      case 'saveIns':   return saveIns_(insEditor_(p.token, [p.id]), p.id, p.until, p.paid);
-      case 'save':      return save_(editor_(p.token), p.student || {});
+      case 'setStatus': return setStatus_(editor_(p.token), p.id, p.status, p.kind);
+      case 'setStatusMany': return setStatusMany_(editor_(p.token), p.ids || [], p.status, p.kind);
+      case 'save':      return saveAny_(auth_(p.token), p.student || {});
+      case 'setLeader': return setLeader_(editor_(p.token), p.id, !!p.on, p.email, !!p.reset);
+      case 'history':   return history_(auth_(p.token), p.id);
       case 'delete':    return delete_(editor_(p.token), p.id);
       case 'deleteMany': return deleteMany_(editor_(p.token), p.group, p.semester);
       default:          return { ok: false, error: 'Неизвестное действие' };
@@ -59,15 +58,17 @@ function handle_(p) {
 /* ================= ЧТЕНИЕ ================= */
 
 // Что видит пользователь «только просмотр» (учителя): без ИНН, email, даты рождения и т.п.
-const VIEWER_FIELDS = ['ID', ENR, 'ФИО', 'ФИО (лат.)', 'Группа', 'Курс', 'Семестр', 'Статус оплаты', PAID_DATE];
+const VIEWER_FIELDS = ['ID', ENR, 'ФИО', 'ФИО (лат.)', 'Группа', 'Курс', 'Семестр', 'Статус оплаты', PAID_DATE, LEADER_COL];
 
-// Что видит староста: только свою группу и только медстраховку
-const LEADER_FIELDS = ['ID', ENR, 'ФИО', 'ФИО (лат.)', 'Группа', 'Курс', 'Семестр', INS_UNTIL, INS_PAID];
+// Что видит староста: только свою группу, без оплаты контракта
+const LEADER_FIELDS = ['ID', ENR, 'ФИО', 'ФИО (лат.)', 'Группа', 'Курс', 'Семестр', 'Email', 'Пол', 'Дата рождения', INS_UNTIL, INS_PAID, LEADER_COL];
+// Что староста может менять (только личные данные)
+const LEADER_EDIT = ['ФИО', 'ФИО (лат.)', 'Email', ENR, 'Пол', 'Дата рождения'];
 
 function adminList_(user) {
   const rows = readAll_().rows;
-  if (user.role === 'leader') return { ok: true, role: 'leader', groups: user.groups, students: rows
-    .filter(s => user.groups.indexOf(s['Группа']) >= 0)
+  if (user.role === 'leader') return { ok: true, role: 'leader', groups: leaderGroups_(user, rows), students: rows
+    .filter(s => leaderGroups_(user, rows).indexOf(s['Группа']) >= 0)
     .map(s => { const o = {}; LEADER_FIELDS.forEach(f => o[f] = s[f] || ''); return o; }) };
   if (user.role !== 'viewer') return { ok: true, role: user.role, deadline: deadline_(), students: rows };
   return { ok: true, role: 'viewer', deadline: deadline_(), students: rows.map(s => {
@@ -82,35 +83,76 @@ function editor_(token) {
   return u;
 }
 
-/** Страховку могут менять деканат и староста — но староста только в своей группе. */
-function insEditor_(token, ids) {
-  const u = auth_(token);
-  if (u.role === 'editor') return u;
-  if (u.role !== 'leader') throw new Error('Нет прав на изменение');
-  const db = readAll_(), want = {};
-  ids.forEach(i => want[i] = 1);
-  const foreign = db.rows.filter(s => want[s['ID']] && u.groups.indexOf(s['Группа']) < 0);
-  if (foreign.length || !ids.length) throw new Error('Можно менять только студентов своей группы');
-  return u;
+/** Группа старосты = текущая группа его студенческой записи (перевели — права переехали). */
+function leaderGroups_(user, rows) {
+  const me = (rows || readAll_().rows).find(s => s['ID'] === user.sid);
+  return me && String(me[LEADER_COL]) === 'Да' ? [me['Группа']] : [];
 }
 
-/** Староста/деканат: дата окончания и оплата страховки одного студента. */
-function saveIns_(user, id, until, paid) {
-  until = String(until || '').trim(); paid = String(paid || '').trim();
-  if (until && until.toLowerCase() !== 'нет' && !validDate_(until)) throw new Error('Дата: дд.мм.гггг или «нет»');
-  if (paid && STATUSES.indexOf(paid) < 0) throw new Error('Неверный статус');
+/** Сохранение карточки: деканат — всё; староста — только личные данные своей группы. */
+function saveAny_(user, st) {
+  if (user.role === 'editor') return save_(user, st);
+  if (user.role !== 'leader') throw new Error('Только просмотр — изменения недоступны');
+  if (!st['ID']) throw new Error('Староста не может добавлять студентов');
+  const rows = readAll_().rows, s = rows.find(x => x['ID'] === st['ID']);
+  if (!s || leaderGroups_(user, rows).indexOf(s['Группа']) < 0) throw new Error('Можно менять только студентов своей группы');
+  const locked = Object.keys(st).filter(f => f !== 'ID' && LEADER_EDIT.indexOf(f) < 0 && EDIT_FIELDS.indexOf(f) >= 0 &&
+                                            String(st[f] == null ? '' : st[f]).trim() !== String(s[f] == null ? '' : s[f]).trim());
+  if (locked.length) throw new Error('Староста не может менять: ' + locked.join(', '));
+  const data = { ID: st['ID'] };
+  LEADER_EDIT.forEach(f => { if (f in st) data[f] = st[f]; });
+  return save_(user, data);
+}
+
+/** История изменений одного студента из «Журнала». */
+function history_(user, id) {
+  if (user.role === 'leader') {
+    const rows = readAll_().rows, s = rows.find(x => x['ID'] === id);
+    if (!s || leaderGroups_(user, rows).indexOf(s['Группа']) < 0) throw new Error('Нет доступа');
+  } else if (user.role !== 'editor') throw new Error('Нет доступа');
+  const lg = sheet_(SHEET_LOG), n = lg.getLastRow() - 1;
+  if (n < 1) return { ok: true, items: [] };
+  const v = lg.getRange(2, 1, n, 7).getDisplayValues();
+  const items = v.filter(r => r[3] === id).slice(-30).reverse()
+    .map(r => ({ when: r[0], who: r[1], what: r[2], before: r[5], after: r[6] }));
+  return { ok: true, items: items };
+}
+
+/** Назначить / снять старосту, выдать новый пароль. Логин — Gmail. */
+function setLeader_(user, id, on, email, reset) {
+  email = String(email || '').trim().toLowerCase();
   return withLock_(() => {
     const db = readAll_();
     const s = db.rows.find(x => x['ID'] === id);
     if (!s) throw new Error('Студент не найден');
-    const cU = ensureCol_(db, INS_UNTIL), cP = ensureCol_(db, INS_PAID);
-    const before = (s[INS_UNTIL] || '') + ' / ' + (s[INS_PAID] || ''), after = until + ' / ' + paid;
-    if (before === after) return { ok: true };
-    db.sh.getRange(s._row, cU + 1).setValue(until ? "'" + until : '');
-    db.sh.getRange(s._row, cP + 1).setValue(paid);
+    const cL = ensureCol_(db, LEADER_COL), cE = ensureCol_(db, LEADER_LOGIN);
+    const L = leaders_();
+    const mine = Object.keys(L).filter(k => L[k].sid === id);
+    let pass = '';
+    if (!on) {
+      mine.forEach(k => delete L[k]);
+      db.sh.getRange(s._row, cL + 1).setValue('');
+      db.sh.getRange(s._row, cE + 1).setValue('');
+      log_(user, 'Староста снят', id, s['ФИО'], s[LEADER_LOGIN] || '', '');
+    } else {
+      if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) throw new Error('Укажите почту (Gmail) старосты');
+      if (L[email] && L[email].sid !== id) throw new Error('Эта почта уже логин другого старосты');
+      const prev = mine.length ? L[mine[0]] : null;
+      mine.filter(k => k !== email).forEach(k => delete L[k]);
+      if (!prev || reset || mine[0] !== email) {
+        pass = newPassword_();
+        const salt = Utilities.getUuid();
+        L[email] = { sid: id, salt: salt, hash: hash_(salt, pass), ver: prev ? (prev.ver || 1) + 1 : 1 };
+      } else L[email] = prev;
+      db.sh.getRange(s._row, cL + 1).setValue('Да');
+      db.sh.getRange(s._row, cE + 1).setValue(email);
+      log_(user, pass ? (prev ? 'Староста: новый пароль' : 'Назначен старостой') : 'Староста', id, s['ФИО'],
+           s[LEADER_LOGIN] || '', email + ' (' + s['Группа'] + ')');
+    }
+    props_().setProperty('LEADERS', JSON.stringify(L));
+    secret_();
     stamp_(db, s._row, user);
-    log_(user, 'Страховка', id, s['ФИО'], before, after);
-    return { ok: true };
+    return { ok: true, password: pass, email: on ? email : '' };
   });
 }
 
@@ -421,17 +463,17 @@ function login_(login, password) {
   const failKey = 'fail_' + login;
   const fails = +(cache.get(failKey) || 0);
   if (fails >= 5) return { ok: false, error: 'Слишком много попыток. Подождите 10 минут.' };
-  const isPhone = /^[+\d\s()-]+$/.test(login) && phoneKey_(login).length >= 9;
-  const key = isPhone ? 'tel:' + phoneKey_(login) : login;
-  const u = isPhone ? leaders_()[phoneKey_(login)] : users_()[login];
+  const isLeader = login.indexOf('@') > 0;              // старосты входят по Gmail
+  const key = isLeader ? 'mail:' + login : login;
+  const u = isLeader ? leaders_()[login] : users_()[login];
   if (!u || hash_(u.salt, String(password || '').trim()) !== u.hash) {
     cache.put(failKey, String(fails + 1), 600);
     Utilities.sleep(800);
     return { ok: false, error: 'Неверный логин или пароль' };
   }
   cache.remove(failKey);
-  const role = isPhone ? 'leader' : (u.role || 'editor');
-  const name = isPhone ? leaderName_(u) : u.name;
+  const role = isLeader ? 'leader' : (u.role || 'editor');
+  const name = isLeader ? leaderName_(u) : u.name;
   const payload = Utilities.base64EncodeWebSafe(Utilities.newBlob(JSON.stringify(
     { u: key, n: name, v: u.ver || 1, e: Date.now() + TOKEN_HOURS * 3600e3 })).getBytes());
   return { ok: true, token: payload + '.' + sign_(payload), name: name, role: role };
@@ -449,10 +491,10 @@ function auth_(token) {
   let d;
   try { d = JSON.parse(Utilities.newBlob(Utilities.base64DecodeWebSafe(payload)).getDataAsString()); } catch (e) { fail(); }
   if (!d || d.e < Date.now()) fail();
-  if (String(d.u).indexOf('tel:') === 0) {           // староста
-    const L = leaders_()[d.u.slice(4)];
+  if (String(d.u).indexOf('mail:') === 0) {          // староста
+    const L = leaders_()[d.u.slice(5)];
     if (!L || (L.ver || 1) !== d.v) fail();
-    return { login: d.u, n: leaderName_(L), role: 'leader', groups: L.groups || [] };
+    return { login: d.u, n: d.n, role: 'leader', sid: L.sid };
   }
   const u = users_()[d.u];
   if (!u || (u.ver || 1) !== d.v) fail(); // пользователь удалён или сменил пароль
@@ -466,7 +508,6 @@ function onOpen() {
     .addItem('Добавить пользователя / сменить пароль', 'menuSetUser')
     .addItem('Добавить учителя (только просмотр)', 'menuSetViewer')
     .addItem('Срок оплаты (баннер на сайте)', 'menuDeadline')
-    .addItem('Старосты: создать / обновить логины', 'menuLeaders')
     .addItem('Список пользователей', 'menuListUsers')
     .addItem('Удалить пользователя', 'menuDeleteUser')
     .addToUi();
@@ -513,61 +554,20 @@ function menuDeadline() {
 }
 
 /* ================= СТАРОСТЫ ================= */
-const SHEET_LEADERS = 'Старосты';
-
+// Хранятся в свойствах скрипта: { gmail: { sid: ID студента, salt, hash, ver } }.
+// Назначаются на сайте: карточка студента → «★ Староста группы».
 function leaders_() {
   try { return JSON.parse(props_().getProperty('LEADERS') || '{}'); } catch (e) { return {}; }
 }
-/** Ключ телефона — последние 9 цифр (неважно, как ввели: +996…, 0…, с пробелами). */
-function phoneKey_(s) { const d = String(s || '').replace(/\D/g, ''); return d.slice(-9); }
-function leaderName_(L) { return 'Староста ' + (L.groups || []).join(', ') + (L.name ? ' (' + L.name + ')' : ''); }
-
+function leaderName_(L) {
+  const s = readAll_().rows.find(x => x['ID'] === L.sid);
+  return s ? 'Староста ' + s['Группа'] + ' (' + s['ФИО'] + ')' : 'Староста';
+}
 function newPassword_() {
   const abc = 'abcdefghjkmnpqrstuvwxyz23456789';     // без похожих символов (l/1, o/0)
   let s = '';
   for (let i = 0; i < 6; i++) s += abc.charAt(Math.floor(Math.random() * abc.length));
   return s;
-}
-
-/** Меню: лист «Старосты» → логины. Новым — пароль; удалённым из листа — доступ закрыт. */
-function menuLeaders() {
-  const ss = SpreadsheetApp.getActive(), ui = SpreadsheetApp.getUi();
-  let sh = ss.getSheetByName(SHEET_LEADERS);
-  if (!sh) {
-    sh = ss.insertSheet(SHEET_LEADERS);
-    sh.getRange(1, 1, 1, 5).setValues([['Телефон (логин)', 'Группа', 'Имя', 'Пароль (раздать)', 'Статус']]).setFontWeight('bold');
-    sh.setFrozenRows(1); sh.getRange('A:A').setNumberFormat('@');
-    return ui.alert('Создан лист «Старосты». Заполните телефон и группу (например 03-1-25), затем снова нажмите этот пункт меню.');
-  }
-  const n = sh.getLastRow() - 1;
-  const groups = {}; readAll_().rows.forEach(s => groups[s['Группа']] = 1);
-  const old = leaders_(), next = {};
-  const vals = n > 0 ? sh.getRange(2, 1, n, 5).getDisplayValues() : [];
-  let created = 0, errors = 0;
-  vals.forEach(r => {
-    const key = phoneKey_(r[0]);
-    const gs = String(r[1] || '').split(/[,;\s]+/).map(x => x.trim()).filter(Boolean);
-    if (!r[0] && !r[1]) { r[4] = ''; return; }
-    if (key.length < 9) { r[4] = '⚠ неверный телефон'; errors++; return; }
-    const bad = gs.filter(g => !groups[g]);
-    if (!gs.length || bad.length) { r[4] = '⚠ нет группы ' + bad.join(', '); errors++; return; }
-    if (next[key]) { r[4] = '⚠ телефон повторяется'; errors++; return; }
-    const prev = old[key];
-    if (prev && r[3]) {                                   // уже есть — обновляем группу/имя, пароль не трогаем
-      next[key] = { name: r[2], groups: gs, salt: prev.salt, hash: prev.hash, ver: prev.ver || 1 };
-      r[4] = '✓ активен'; return;
-    }
-    const pass = newPassword_(), salt = Utilities.getUuid();   // новый или пароль стёрт → новый пароль
-    next[key] = { name: r[2], groups: gs, salt: salt, hash: hash_(salt, pass), ver: prev ? (prev.ver || 1) + 1 : 1 };
-    r[3] = pass; r[4] = '✓ создан ' + now_(); created++;
-  });
-  props_().setProperty('LEADERS', JSON.stringify(next));
-  secret_();
-  if (n > 0) sh.getRange(2, 1, n, 5).setValues(vals);
-  const removed = Object.keys(old).filter(k => !next[k]).length;
-  ui.alert('Старост активно: ' + Object.keys(next).length + '\nНовых паролей: ' + created +
-           (removed ? '\nДоступ закрыт: ' + removed : '') + (errors ? '\nОшибок: ' + errors + ' (см. колонку «Статус»)' : '') +
-           '\n\nЧтобы выдать новый пароль — сотрите его в колонке «Пароль» и нажмите пункт снова.');
 }
 
 function menuListUsers() {
