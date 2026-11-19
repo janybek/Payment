@@ -248,9 +248,11 @@ function applyLang() {
 let all = [];                // [{id,name,lat,grp,course,sem,paid,raw}]
 let token = store('get', 'tok');
 let user = store('get', 'usr') || '';
+let role = store('get', 'role') || 'editor';
 const st = { q: '', sem: '', grp: '', status: 'all', check: false, sort: 'grp', shown: PAGE };
 const $ = s => document.querySelector(s);
-const isAdmin = () => !!token;
+const isAdmin = () => !!token;                       // вошёл (видит имена)
+const isEditor = () => !!token && role !== 'viewer';  // может изменять
 
 function store(op, k, v) { try { if (op === 'get') return sessionStorage.getItem(k); if (op === 'set') sessionStorage.setItem(k, v); else sessionStorage.removeItem(k); } catch (e) { return null; } }
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -279,6 +281,7 @@ async function load() {
   try {
     if (isAdmin()) {
       const j = await api('adminList');
+      if (j.role) { role = j.role; store('set', 'role', role); }
       all = j.students.map(s => ({ id: s['ID'], enr: s['Номер студ. билета'] || '', name: s['ФИО'], lat: s['ФИО (лат.)'], grp: s['Группа'], course: s['Курс'], sem: s['Семестр'], paid: s['Статус оплаты'] === 'Оплатил', check: s['Проверить'] === 'Да', raw: s }));
     } else {
       const r = await fetch(API + '?action=list'); const j = await r.json();
@@ -322,10 +325,10 @@ const disp = s => !isAdmin() ? t('enr')(s.enr) : (lang === 'en' && s.lat) ? s.la
 function shortName(n) { const p = n.split(' '); return p.length > 1 ? p[0] + ' ' + p.slice(1).map(x => x[0] + '.').join(' ') : n; }
 
 function render() {
-  document.body.classList.toggle('admin', isAdmin());
-  document.querySelectorAll('.adm').forEach(el => el.hidden = !isAdmin());
+  document.body.classList.toggle('admin', isEditor());
+  document.querySelectorAll('.adm').forEach(el => el.hidden = !isEditor());
   $('#authBtn').textContent = isAdmin() ? t('out') : t('in');
-  $('#who').textContent = isAdmin() ? user : '';
+  $('#who').textContent = isAdmin() ? user + (isEditor() ? '' : ' 👁') : '';
 
   const base = filtered(true);
   const p = base.filter(s => s.paid).length;
@@ -338,7 +341,7 @@ function render() {
   $('#q').placeholder = isAdmin() ? t('searchAdm') : t('search');
   document.querySelector('#sort option[value=name]').textContent = isAdmin() ? t('sortName') : t('sortNum');
   const dm = $('#delManyBtn'), scope = all.filter(s => (!st.sem || String(s.sem) === st.sem) && (!st.grp || s.grp === st.grp));
-  dm.hidden = !isAdmin() || (!st.sem && !st.grp) || !scope.length;
+  dm.hidden = !isEditor() || (!st.sem && !st.grp) || !scope.length;
   if (!dm.hidden) dm.textContent = st.grp && st.sem ? t('delGrpSem')(st.grp, st.sem, scope.length) : st.grp ? t('delGrp')(st.grp, scope.length) : t('delSem')(st.sem, scope.length);
 
   let rows = filtered(false);
@@ -362,7 +365,7 @@ function render() {
       <span class="dot"></span>
       <div class="nm"><b>${esc(nm)}${s.check ? '<span class="warn">⚠</span>' : ''}</b><small>${esc(subParts.join(' · '))}</small></div>
       <span class="badge">${s.paid ? t('paid') : t('unpaid')}</span>
-      ${isAdmin() ? `<button class="pay" data-act="pay">${s.paid ? t('unmark') : t('markPaid')}</button><button class="edit" data-act="edit" title="Редактировать">✎</button>` : ''}
+      ${isEditor() ? `<button class="pay" data-act="pay">${s.paid ? t('unmark') : t('markPaid')}</button><button class="edit" data-act="edit" title="Редактировать">✎</button>` : ''}
     </div>`;
   });
   if (rows.length > st.shown) html += `<button class="more" id="moreBtn">${t('more')(rows.length - st.shown)}</button>`;
@@ -449,13 +452,13 @@ $('#loginForm').addEventListener('submit', async e => {
   e.preventDefault(); $('#lBtn').disabled = true; $('#lErr').textContent = '';
   try {
     const j = await api('login', { login: $('#lLogin').value, password: $('#lPass').value });
-    token = j.token; user = j.name; store('set', 'tok', token); store('set', 'usr', user);
+    token = j.token; user = j.name; role = j.role || 'editor'; store('set', 'tok', token); store('set', 'usr', user); store('set', 'role', role);
     $('#lPass').value = ''; hide('#mLogin'); load();
   } catch (err) { $('#lErr').textContent = err.message; }
   $('#lBtn').disabled = false;
 });
 function logout(expired) {
-  token = null; user = ''; store('del', 'tok'); store('del', 'usr'); st.check = false; st.noNum = false;
+  token = null; user = ''; role = 'editor'; store('del', 'tok'); store('del', 'usr'); store('del', 'role'); st.check = false; st.noNum = false;
   if (expired) toast(t('expired'));
   load();
 }

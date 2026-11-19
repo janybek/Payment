@@ -34,11 +34,11 @@ function handle_(p) {
     switch (p.action) {
       case 'list':      return { ok: true, students: listPublic_() };
       case 'login':     return login_(p.login, p.password);
-      case 'adminList': auth_(p.token); return { ok: true, students: readAll_().rows };
-      case 'setStatus': return setStatus_(auth_(p.token), p.id, p.status);
-      case 'save':      return save_(auth_(p.token), p.student || {});
-      case 'delete':    return delete_(auth_(p.token), p.id);
-      case 'deleteMany': return deleteMany_(auth_(p.token), p.group, p.semester);
+      case 'adminList': return adminList_(auth_(p.token));
+      case 'setStatus': return setStatus_(editor_(p.token), p.id, p.status);
+      case 'save':      return save_(editor_(p.token), p.student || {});
+      case 'delete':    return delete_(editor_(p.token), p.id);
+      case 'deleteMany': return deleteMany_(editor_(p.token), p.group, p.semester);
       default:          return { ok: false, error: 'Неизвестное действие' };
     }
   } catch (err) {
@@ -47,6 +47,24 @@ function handle_(p) {
 }
 
 /* ================= ЧТЕНИЕ ================= */
+
+// Что видит пользователь «только просмотр» (учителя): без ИНН, email, даты рождения и т.п.
+const VIEWER_FIELDS = ['ID', ENR, 'ФИО', 'ФИО (лат.)', 'Группа', 'Курс', 'Семестр', 'Статус оплаты'];
+
+function adminList_(user) {
+  const rows = readAll_().rows;
+  if (user.role !== 'viewer') return { ok: true, role: user.role, students: rows };
+  return { ok: true, role: 'viewer', students: rows.map(s => {
+    const o = {}; VIEWER_FIELDS.forEach(f => o[f] = s[f] || ''); return o;
+  }) };
+}
+
+/** Проверка, что пользователь может менять данные (не «только просмотр»). */
+function editor_(token) {
+  const u = auth_(token);
+  if (u.role === 'viewer') throw new Error('Только просмотр — изменения недоступны');
+  return u;
+}
 
 function sheet_(name) {
   const sh = SpreadsheetApp.getActive().getSheetByName(name);
@@ -272,7 +290,7 @@ function login_(login, password) {
   cache.remove(failKey);
   const payload = Utilities.base64EncodeWebSafe(Utilities.newBlob(JSON.stringify(
     { u: login, n: u.name, v: u.ver || 1, e: Date.now() + TOKEN_HOURS * 3600e3 })).getBytes());
-  return { ok: true, token: payload + '.' + sign_(payload), name: u.name };
+  return { ok: true, token: payload + '.' + sign_(payload), name: u.name, role: u.role || 'editor' };
 }
 
 function sign_(payload) {
@@ -289,7 +307,7 @@ function auth_(token) {
   if (!d || d.e < Date.now()) fail();
   const u = users_()[d.u];
   if (!u || (u.ver || 1) !== d.v) fail(); // пользователь удалён или сменил пароль
-  return { login: d.u, n: u.name };
+  return { login: d.u, n: u.name, role: u.role || 'editor' };
 }
 
 /* ================= МЕНЮ В ТАБЛИЦЕ (только для владельца) ================= */
@@ -297,6 +315,7 @@ function auth_(token) {
 function onOpen() {
   SpreadsheetApp.getUi().createMenu('Сайт оплат')
     .addItem('Добавить пользователя / сменить пароль', 'menuSetUser')
+    .addItem('Добавить учителя (только просмотр)', 'menuSetViewer')
     .addItem('Список пользователей', 'menuListUsers')
     .addItem('Удалить пользователя', 'menuDeleteUser')
     .addToUi();
@@ -309,7 +328,10 @@ function ask_(title, text) {
   return r.getResponseText().trim();
 }
 
-function menuSetUser() {
+function menuSetViewer() { menuSetUser('viewer'); }
+
+function menuSetUser(role) {
+  role = role === 'viewer' ? 'viewer' : 'editor';
   const ui = SpreadsheetApp.getUi();
   const login = (ask_('Логин', 'Латиницей, например: dekan') || '').toLowerCase();
   if (!login) return;
@@ -323,15 +345,15 @@ function menuSetUser() {
   if (pass.length < 8) return ui.alert('Пароль слишком короткий — минимум 8 символов');
   const salt = Utilities.getUuid();
   users[login] = { name: name || (old && old.name) || login, salt: salt, hash: hash_(salt, pass),
-                   ver: old ? (old.ver || 1) + 1 : 1 };
+                   ver: old ? (old.ver || 1) + 1 : 1, role: role };
   props_().setProperty('USERS', JSON.stringify(users));
   secret_();
-  ui.alert('Готово: ' + login + ' (' + users[login].name + ')' + (old ? '\nСтарые входы этого пользователя сброшены.' : ''));
+  ui.alert('Готово: ' + login + ' (' + users[login].name + ') — ' + (role === 'viewer' ? 'только просмотр' : 'может изменять') + (old ? '\nСтарые входы этого пользователя сброшены.' : ''));
 }
 
 function menuListUsers() {
   const users = users_();
-  const list = Object.keys(users).map(l => '• ' + l + ' — ' + users[l].name).join('\n');
+  const list = Object.keys(users).map(l => '• ' + l + ' — ' + users[l].name + (users[l].role === 'viewer' ? ' (просмотр)' : ' (изменение)')).join('\n');
   SpreadsheetApp.getUi().alert(list || 'Пользователей пока нет');
 }
 
