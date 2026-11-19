@@ -10,9 +10,12 @@ const TOKEN_HOURS = 12;
 const STATUSES = ['Оплатил', 'Не оплатил'];
 const ENR = 'Номер студ. билета';
 const PAID_DATE = 'Дата оплаты';
+// Медстраховка — видна только деканату (не учителям и не на публичной странице)
+const INS_UNTIL = 'Страховка до';
+const INS_PAID = 'Страховка оплата';
 // Семестры, скрытые на публичной странице (админка видит всё)
 const HIDDEN_SEMESTERS = ['1'];
-const EDIT_FIELDS = [ENR, 'ФИО', 'ФИО (лат.)', 'Группа', 'Курс', 'Семестр', 'Статус оплаты',
+const EDIT_FIELDS = [INS_UNTIL, INS_PAID, ENR, 'ФИО', 'ФИО (лат.)', 'Группа', 'Курс', 'Семестр', 'Статус оплаты',
   'ИНН / паспорт', 'Email', 'Дата рождения', 'Пол', 'Проверить', 'Примечание'];
 
 /* ================= ВХОД В API ================= */
@@ -36,8 +39,8 @@ function handle_(p) {
       case 'list':      return { ok: true, students: listPublic_(), deadline: deadline_() };
       case 'login':     return login_(p.login, p.password);
       case 'adminList': return adminList_(auth_(p.token));
-      case 'setStatus': return setStatus_(editor_(p.token), p.id, p.status);
-      case 'setStatusMany': return setStatusMany_(editor_(p.token), p.ids || [], p.status);
+      case 'setStatus': return setStatus_(editor_(p.token), p.id, p.status, p.kind);
+      case 'setStatusMany': return setStatusMany_(editor_(p.token), p.ids || [], p.status, p.kind);
       case 'save':      return save_(editor_(p.token), p.student || {});
       case 'delete':    return delete_(editor_(p.token), p.id);
       case 'deleteMany': return deleteMany_(editor_(p.token), p.group, p.semester);
@@ -116,8 +119,9 @@ function withLock_(fn) {
   try { return fn(); } finally { lock.releaseLock(); }
 }
 
-function setStatus_(user, id, status) {
+function setStatus_(user, id, status, kind) {
   if (STATUSES.indexOf(status) < 0) throw new Error('Неверный статус');
+  if (kind === 'ins') return setInsPaid_(user, [id], status, false);
   return withLock_(() => {
     const db = readAll_();
     const s = db.rows.find(x => x['ID'] === id);
@@ -136,10 +140,33 @@ function setStatus_(user, id, status) {
 }
 
 /** Массовая отметка оплаты: одна запись в таблицу для всех выбранных. */
-function setStatusMany_(user, ids, status) {
+/** Оплата страховки: одному или нескольким студентам. */
+function setInsPaid_(user, ids, status, many) {
+  if (!ids.length) throw new Error('Никто не выбран');
+  return withLock_(() => {
+    const db = readAll_();
+    const c = ensureCol_(db, INS_PAID);
+    const want = {}; ids.forEach(i => want[i] = 1);
+    const stamp = now_(), logRows = [];
+    db.rows.forEach(s => {
+      if (!want[s['ID']] || (s[INS_PAID] || '') === status) return;
+      db.sh.getRange(s._row, c + 1).setValue(status);
+      stamp_(db, s._row, user);
+      logRows.push([stamp, user.n, many ? 'Страховка (массово)' : 'Страховка', s['ID'], s['ФИО'], s[INS_PAID] || '', status]);
+    });
+    if (logRows.length) {
+      const lg = sheet_(SHEET_LOG);
+      lg.getRange(lg.getLastRow() + 1, 1, logRows.length, 7).setValues(logRows);
+    }
+    return { ok: true, count: logRows.length };
+  });
+}
+
+function setStatusMany_(user, ids, status, kind) {
   if (STATUSES.indexOf(status) < 0) throw new Error('Неверный статус');
   if (!ids.length) throw new Error('Никто не выбран');
   if (ids.length > 2000) throw new Error('Слишком много');
+  if (kind === 'ins') return setInsPaid_(user, ids, status, true);
   return withLock_(() => {
     const db = readAll_();
     const pd = ensureCol_(db, PAID_DATE);
@@ -165,6 +192,13 @@ function setStatusMany_(user, ids, status) {
     }
     return { ok: true, count: logRows.length, date: date };
   });
+}
+
+function validDate_(v) {
+  const m = /^(\d{2})\.(\d{2})\.(\d{4})$/.exec(v || '');
+  if (!m) return false;
+  const d = new Date(+m[3], +m[2] - 1, +m[1]);
+  return d.getFullYear() === +m[3] && d.getMonth() === +m[2] - 1 && d.getDate() === +m[1];
 }
 
 function today_() { return Utilities.formatDate(new Date(), TZ, 'dd.MM.yyyy'); }
@@ -193,6 +227,9 @@ function clean_(st) {
   if ('Группа' in o && !o['Группа']) throw new Error('Укажите группу');
   if ('Статус оплаты' in o && STATUSES.indexOf(o['Статус оплаты']) < 0) throw new Error('Неверный статус');
   if (o[ENR] && !/^\d{4,10}$/.test(o[ENR])) throw new Error('Номер студ. билета — только цифры');
+  if (o[INS_UNTIL] && o[INS_UNTIL].toLowerCase() !== 'нет' && !validDate_(o[INS_UNTIL]))
+    throw new Error('«Страховка до» — дата дд.мм.гггг или «нет»');
+  if (o[INS_PAID] && STATUSES.indexOf(o[INS_PAID]) < 0) throw new Error('Неверный статус страховки');
   ['Курс', 'Семестр'].forEach(f => {
     if (o[f]) { if (!/^\d{1,2}$/.test(o[f])) throw new Error('«' + f + '» — только число'); o[f] = Number(o[f]); }
   });
@@ -213,9 +250,11 @@ function save_(user, st) {
       if (!s) throw new Error('Студент ' + st['ID'] + ' не найден');
       const changes = [];
       Object.keys(data).forEach(f => {
-        if (!(f in db.col)) return;
+        if (!(f in db.col)) {
+          if ((f === INS_UNTIL || f === INS_PAID) && data[f]) ensureCol_(db, f); else return;
+        }
         if (String(s[f]) === String(data[f])) return;
-        db.sh.getRange(s._row, db.col[f] + 1).setValue(data[f]);
+        db.sh.getRange(s._row, db.col[f] + 1).setValue(f === INS_UNTIL && data[f] ? "'" + data[f] : data[f]);
         changes.push([f, s[f], data[f]]);
       });
       const sc = changes.find(c => c[0] === 'Статус оплаты');
@@ -245,6 +284,7 @@ function save_(user, st) {
       if (h === 'Изменено') return now_();
       if (h === 'Кем изменено') return user.n;
       if (h === PAID_DATE) return data['Статус оплаты'] === 'Оплатил' ? today_() : '';
+      if (h === INS_UNTIL && data[h]) return "'" + data[h];
       return h in data ? data[h] : '';
     });
     db.sh.appendRow(row);
