@@ -8,7 +8,10 @@ const SHEET_LOG = 'Журнал';
 const TZ = 'Asia/Bishkek';
 const TOKEN_HOURS = 12;
 const STATUSES = ['Оплатил', 'Не оплатил'];
-const EDIT_FIELDS = ['ФИО', 'ФИО (лат.)', 'Группа', 'Курс', 'Семестр', 'Статус оплаты',
+const ENR = 'Номер студ. билета';
+// Семестры, скрытые на публичной странице (админка видит всё)
+const HIDDEN_SEMESTERS = ['1'];
+const EDIT_FIELDS = [ENR, 'ФИО', 'ФИО (лат.)', 'Группа', 'Курс', 'Семестр', 'Статус оплаты',
   'ИНН / паспорт', 'Email', 'Дата рождения', 'Пол', 'Проверить', 'Примечание'];
 
 /* ================= ВХОД В API ================= */
@@ -71,12 +74,12 @@ function readAll_() {
   return { sh, headers, col, rows };
 }
 
-/** Публичный список — только ФИО, группа, курс, семестр, статус. */
+/** Публичный список — БЕЗ ФИО: только номер студ. билета, группа, курс, семестр, статус. */
 function listPublic_() {
-  return readAll_().rows.map(s => ({
-    i: s['ID'], n: s['ФИО'], l: s['ФИО (лат.)'] || '', g: s['Группа'],
-    c: s['Курс'], s: s['Семестр'], p: s['Статус оплаты'] === 'Оплатил' ? 1 : 0
-  }));
+  return readAll_().rows
+    .filter(s => s[ENR] && HIDDEN_SEMESTERS.indexOf(String(s['Семестр'])) < 0)
+    .map(s => ({ e: String(s[ENR]), g: s['Группа'], c: s['Курс'], s: s['Семестр'],
+                 p: s['Статус оплаты'] === 'Оплатил' ? 1 : 0 }));
 }
 
 /* ================= ИЗМЕНЕНИЯ ================= */
@@ -120,6 +123,7 @@ function clean_(st) {
   if ('ФИО' in o && !o['ФИО']) throw new Error('Укажите ФИО');
   if ('Группа' in o && !o['Группа']) throw new Error('Укажите группу');
   if ('Статус оплаты' in o && STATUSES.indexOf(o['Статус оплаты']) < 0) throw new Error('Неверный статус');
+  if (o[ENR] && !/^\d{4,10}$/.test(o[ENR])) throw new Error('Номер студ. билета — только цифры');
   ['Курс', 'Семестр'].forEach(f => {
     if (o[f]) { if (!/^\d{1,2}$/.test(o[f])) throw new Error('«' + f + '» — только число'); o[f] = Number(o[f]); }
   });
@@ -130,6 +134,10 @@ function save_(user, st) {
   const data = clean_(st);
   return withLock_(() => {
     const db = readAll_();
+    if (data[ENR]) {
+      const twin = db.rows.find(x => String(x[ENR]) === data[ENR] && x['ID'] !== st['ID']);
+      if (twin) throw new Error('Номер ' + data[ENR] + ' уже есть у студента ' + twin['ID'] + ' (' + twin['Группа'] + ')');
+    }
     if (st['ID']) {
       // --- редактирование ---
       const s = db.rows.find(x => x['ID'] === st['ID']);
