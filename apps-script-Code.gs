@@ -9,6 +9,7 @@ const TZ = 'Asia/Bishkek';
 const TOKEN_HOURS = 12;
 const STATUSES = ['Оплатил', 'Не оплатил'];
 const ENR = 'Номер студ. билета';
+const PAID_DATE = 'Дата оплаты';
 // Семестры, скрытые на публичной странице (админка видит всё)
 const HIDDEN_SEMESTERS = ['1'];
 const EDIT_FIELDS = [ENR, 'ФИО', 'ФИО (лат.)', 'Группа', 'Курс', 'Семестр', 'Статус оплаты',
@@ -32,10 +33,11 @@ function respond_(obj) {
 function handle_(p) {
   try {
     switch (p.action) {
-      case 'list':      return { ok: true, students: listPublic_() };
+      case 'list':      return { ok: true, students: listPublic_(), deadline: deadline_() };
       case 'login':     return login_(p.login, p.password);
       case 'adminList': return adminList_(auth_(p.token));
       case 'setStatus': return setStatus_(editor_(p.token), p.id, p.status);
+      case 'setStatusMany': return setStatusMany_(editor_(p.token), p.ids || [], p.status);
       case 'save':      return save_(editor_(p.token), p.student || {});
       case 'delete':    return delete_(editor_(p.token), p.id);
       case 'deleteMany': return deleteMany_(editor_(p.token), p.group, p.semester);
@@ -49,12 +51,12 @@ function handle_(p) {
 /* ================= ЧТЕНИЕ ================= */
 
 // Что видит пользователь «только просмотр» (учителя): без ИНН, email, даты рождения и т.п.
-const VIEWER_FIELDS = ['ID', ENR, 'ФИО', 'ФИО (лат.)', 'Группа', 'Курс', 'Семестр', 'Статус оплаты'];
+const VIEWER_FIELDS = ['ID', ENR, 'ФИО', 'ФИО (лат.)', 'Группа', 'Курс', 'Семестр', 'Статус оплаты', PAID_DATE];
 
 function adminList_(user) {
   const rows = readAll_().rows;
-  if (user.role !== 'viewer') return { ok: true, role: user.role, students: rows };
-  return { ok: true, role: 'viewer', students: rows.map(s => {
+  if (user.role !== 'viewer') return { ok: true, role: user.role, deadline: deadline_(), students: rows };
+  return { ok: true, role: 'viewer', deadline: deadline_(), students: rows.map(s => {
     const o = {}; VIEWER_FIELDS.forEach(f => o[f] = s[f] || ''); return o;
   }) };
 }
@@ -123,12 +125,61 @@ function setStatus_(user, id, status) {
     const before = s['Статус оплаты'];
     if (before === status) return { ok: true, student: s };
     db.sh.getRange(s._row, db.col['Статус оплаты'] + 1).setValue(status);
+    const pd = ensureCol_(db, PAID_DATE);
+    const date = status === 'Оплатил' ? today_() : '';
+    db.sh.getRange(s._row, pd + 1).setNumberFormat('@').setValue(date);
     stamp_(db, s._row, user);
     log_(user, 'Статус', id, s['ФИО'], before, status);
-    s['Статус оплаты'] = status;
-    return { ok: true, student: s };
+    s['Статус оплаты'] = status; s[PAID_DATE] = date;
+    return { ok: true, student: s, date: date };
   });
 }
+
+/** Массовая отметка оплаты: одна запись в таблицу для всех выбранных. */
+function setStatusMany_(user, ids, status) {
+  if (STATUSES.indexOf(status) < 0) throw new Error('Неверный статус');
+  if (!ids.length) throw new Error('Никто не выбран');
+  if (ids.length > 2000) throw new Error('Слишком много');
+  return withLock_(() => {
+    const db = readAll_();
+    const pd = ensureCol_(db, PAID_DATE);
+    const last = db.sh.getLastRow(), n = last - 1, w = db.headers.length;
+    const range = db.sh.getRange(2, 1, n, w);
+    const vals = range.getValues();
+    const want = {}; ids.forEach(i => want[i] = 1);
+    const cS = db.col['Статус оплаты'], cI = db.col['ID'];
+    const cM = db.col['Изменено'], cK = db.col['Кем изменено'];
+    const date = status === 'Оплатил' ? today_() : '', stamp = now_(), logRows = [];
+    vals.forEach(row => {
+      if (!want[row[cI]] || row[cS] === status) return;
+      logRows.push([stamp, user.n, 'Статус (массово)', row[cI], row[db.col['ФИО']], row[cS], status]);
+      row[cS] = status; row[pd] = date;
+      if (cM != null) row[cM] = stamp;
+      if (cK != null) row[cK] = user.n;
+    });
+    if (logRows.length) {
+      db.sh.getRange(2, pd + 1, n, 1).setNumberFormat('@');
+      range.setValues(vals);
+      const lg = sheet_(SHEET_LOG);
+      lg.getRange(lg.getLastRow() + 1, 1, logRows.length, 7).setValues(logRows);
+    }
+    return { ok: true, count: logRows.length, date: date };
+  });
+}
+
+function today_() { return Utilities.formatDate(new Date(), TZ, 'dd.MM.yyyy'); }
+
+/** Добавляет колонку в конец листа, если её нет. Возвращает индекс (с 0). */
+function ensureCol_(db, name) {
+  if (name in db.col) return db.col[name];
+  const c = db.headers.length;
+  db.sh.getRange(1, c + 1).setValue(name).setFontWeight('bold');
+  db.headers.push(name); db.col[name] = c;
+  return c;
+}
+
+/** Срок оплаты (dd.MM.yyyy) — задаётся в таблице: меню «Сайт оплат → Срок оплаты». */
+function deadline_() { return props_().getProperty('DEADLINE') || ''; }
 
 function stamp_(db, row, user) {
   if ('Изменено' in db.col) db.sh.getRange(row, db.col['Изменено'] + 1).setValue(now_());
@@ -167,6 +218,11 @@ function save_(user, st) {
         db.sh.getRange(s._row, db.col[f] + 1).setValue(data[f]);
         changes.push([f, s[f], data[f]]);
       });
+      const sc = changes.find(c => c[0] === 'Статус оплаты');
+      if (sc) {
+        const pd = ensureCol_(db, PAID_DATE);
+        db.sh.getRange(s._row, pd + 1).setNumberFormat('@').setValue(sc[2] === 'Оплатил' ? today_() : '');
+      }
       if (changes.length) {
         stamp_(db, s._row, user);
         log_(user, 'Редактирование', s['ID'], data['ФИО'] || s['ФИО'],
@@ -188,6 +244,7 @@ function save_(user, st) {
       if (h === 'ID') return id;
       if (h === 'Изменено') return now_();
       if (h === 'Кем изменено') return user.n;
+      if (h === PAID_DATE) return data['Статус оплаты'] === 'Оплатил' ? today_() : '';
       return h in data ? data[h] : '';
     });
     db.sh.appendRow(row);
@@ -316,6 +373,7 @@ function onOpen() {
   SpreadsheetApp.getUi().createMenu('Сайт оплат')
     .addItem('Добавить пользователя / сменить пароль', 'menuSetUser')
     .addItem('Добавить учителя (только просмотр)', 'menuSetViewer')
+    .addItem('Срок оплаты (баннер на сайте)', 'menuDeadline')
     .addItem('Список пользователей', 'menuListUsers')
     .addItem('Удалить пользователя', 'menuDeleteUser')
     .addToUi();
@@ -349,6 +407,16 @@ function menuSetUser(role) {
   props_().setProperty('USERS', JSON.stringify(users));
   secret_();
   ui.alert('Готово: ' + login + ' (' + users[login].name + ') — ' + (role === 'viewer' ? 'только просмотр' : 'может изменять') + (old ? '\nСтарые входы этого пользователя сброшены.' : ''));
+}
+
+function menuDeadline() {
+  const ui = SpreadsheetApp.getUi();
+  const cur = deadline_();
+  const v = ask_('Срок оплаты', 'Дата в формате дд.мм.гггг, например 01.12.2026.\nПусто — убрать баннер.' + (cur ? '\nСейчас: ' + cur : ''));
+  if (v === null) return;
+  if (v && !/^\d{2}\.\d{2}\.\d{4}$/.test(v)) return ui.alert('Формат: дд.мм.гггг');
+  if (v) props_().setProperty('DEADLINE', v); else props_().deleteProperty('DEADLINE');
+  ui.alert(v ? 'Срок оплаты: ' + v : 'Баннер убран');
 }
 
 function menuListUsers() {
