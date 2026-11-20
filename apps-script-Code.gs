@@ -708,7 +708,7 @@ function visits_(user) {
     if (r[4] === 'Открыл сайт') { D.opens[r[2]] = (D.opens[r[2]] || 0) + 1; if (r[6]) D.uniq[r[6]] = 1; }
     if (r[4] === 'Вход') D.logins++;
     if (r[4] === 'Вкладка') { const k = r[2] + ' · ' + r[5]; tabs[k] = (tabs[k] || 0) + 1; }
-    if (r[3]) { const p = people[r[3]] ||= { who: r[3], role: r[2], n: 0, last: '' }; p.n++; p.last = r[0] + ' ' + r[1]; }
+    if (r[3]) { if (!people[r[3]]) people[r[3]] = { who: r[3], role: r[2], n: 0, last: '' }; const p = people[r[3]]; p.n++; p.last = r[0] + ' ' + r[1]; }
   });
   return { ok: true, total: n,
     days: days.map(D => ({ date: D.date, opens: D.opens, uniq: Object.keys(D.uniq).length, logins: D.logins })),
