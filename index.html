@@ -614,7 +614,7 @@ function openEdit(s) {
   loadHistory(s);
   show('#mEdit'); setTimeout(() => f.elements['ФИО'].focus(), 50);
 }
-const LEADER_EDIT = ['ФИО', 'ФИО (лат.)', 'Email', 'Номер студ. билета', 'Пол', 'Дата рождения'];
+const LEADER_EDIT = ['ФИО', 'ФИО (лат.)', 'Email', 'Номер студ. билета', 'Пол', 'Дата рождения', 'Страховка до'];
 async function loadHistory(s) {
   const h = $('#eHist'); h.hidden = true; h.innerHTML = '';
   if (!s || !canEdit()) return;
