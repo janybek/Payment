@@ -41,8 +41,12 @@ function handle_(p) {
       case 'list':      return { ok: true, students: listPublic_(), deadline: deadline_() };
       case 'login':     return login_(p.login, p.password);
       case 'adminList': return adminList_(auth_(p.token));
-      case 'setStatus': return setStatus_(editor_(p.token), p.id, p.status, p.kind);
-      case 'setStatusMany': return setStatusMany_(editor_(p.token), p.ids || [], p.status, p.kind);
+      case 'setStatus': return p.kind === 'ins'
+        ? setStatus_(insEditor_(p.token, [p.id]), p.id, p.status, 'ins')
+        : setStatus_(editor_(p.token), p.id, p.status, p.kind);
+      case 'setStatusMany': return p.kind === 'ins'
+        ? setStatusMany_(insEditor_(p.token, p.ids || []), p.ids || [], p.status, 'ins')
+        : setStatusMany_(editor_(p.token), p.ids || [], p.status, p.kind);
       case 'save':      return saveAny_(auth_(p.token), p.student || {});
       case 'setLeader': return setLeader_(editor_(p.token), p.id, !!p.on, p.email, !!p.reset);
       case 'history':   return history_(auth_(p.token), p.id);
@@ -62,8 +66,8 @@ const VIEWER_FIELDS = ['ID', ENR, 'ФИО', 'ФИО (лат.)', 'Группа', 
 
 // Что видит староста: только свою группу, без оплаты контракта
 const LEADER_FIELDS = ['ID', ENR, 'ФИО', 'ФИО (лат.)', 'Группа', 'Курс', 'Семестр', 'Email', 'Пол', 'Дата рождения', INS_UNTIL, INS_PAID, LEADER_COL];
-// Что староста может менять (личные данные + дата окончания страховки)
-const LEADER_EDIT = ['ФИО', 'ФИО (лат.)', 'Email', ENR, 'Пол', 'Дата рождения', INS_UNTIL];
+// Что староста может менять (личные данные + страховка: дата и оплата)
+const LEADER_EDIT = ['ФИО', 'ФИО (лат.)', 'Email', ENR, 'Пол', 'Дата рождения', INS_UNTIL, INS_PAID];
 
 function adminList_(user) {
   const rows = readAll_().rows;
@@ -87,6 +91,18 @@ function editor_(token) {
 function leaderGroups_(user, rows) {
   const me = (rows || readAll_().rows).find(s => s['ID'] === user.sid);
   return me && String(me[LEADER_COL]) === 'Да' ? [me['Группа']] : [];
+}
+
+/** Оплату страховки меняют деканат и староста (только в своей группе). Оплату контракта — только деканат. */
+function insEditor_(token, ids) {
+  const u = auth_(token);
+  if (u.role === 'editor') return u;
+  if (u.role !== 'leader') throw new Error('Только просмотр — изменения недоступны');
+  const rows = readAll_().rows, my = leaderGroups_(u, rows), want = {};
+  ids.forEach(i => want[i] = 1);
+  if (!ids.length || rows.some(s => want[s['ID']] && my.indexOf(s['Группа']) < 0))
+    throw new Error('Можно менять только студентов своей группы');
+  return u;
 }
 
 /** Сохранение карточки: деканат — всё; староста — только личные данные своей группы. */

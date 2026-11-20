@@ -516,8 +516,8 @@ function render() {
   document.body.classList.toggle('admin', isEditor());
   document.querySelectorAll('.adm').forEach(el => el.hidden = !isEditor());
   document.querySelectorAll('.auth').forEach(el => el.hidden = !isAdmin());
-  if (!isEditor()) { st.selMode = false; st.sel.clear(); }
-  $('#selBtn').hidden = !isEditor();
+  if (!canMark()) { st.selMode = false; st.sel.clear(); }
+  $('#selBtn').hidden = !canMark();
   $('#statsBtn').hidden = isLeader();
   renderDeadline(); renderBulk();
   $('#authBtn').textContent = isAdmin() ? t('out') : t('in');
@@ -557,13 +557,13 @@ function render() {
     const nm = disp(s);
     const second = isAdmin() ? (lang === 'en' ? (s.lat ? s.name : '') : s.lat) : '';
     const subParts = [st.sort === 'name' ? s.grp : '', isAdmin() ? (s.enr ? t('enr')(s.enr) : '—') : '', second, isAdmin() ? s.id : '', !INS() && isAdmin() && s.paid && s.pdate ? t('paidOn')(s.pdate) : ''].filter(Boolean);
-    const sm = st.selMode && isEditor(), on = sm && st.sel.has(s.id);
+    const sm = st.selMode && canMark(), on = sm && st.sel.has(s.id);
     const pd = P(s);
     html += `<div class="row ${pd ? 'p' : 'u'}${sm ? ' selmode' : ''}${on ? ' sel' : ''}" data-id="${esc(s.id)}">
       ${sm ? `<span class="ck">${on ? '✓' : ''}</span>` : '<span class="dot"></span>'}
       <div class="nm"><b${isAdmin() && s.leader ? ' class="lead"' : ''}>${esc(nm)}${isAdmin() && s.leader ? '<span class="lead-b">★ ' + t('leaderB') + '</span>' : ''}${s.check ? '<span class="warn">⚠</span>' : ''}</b><small>${esc(subParts.join(' · '))}${INS() ? '<br>' + insText(s) : ''}</small></div>
       <span class="badge">${pd ? t('paid') : t('unpaid')}</span>
-      ${isEditor() && !sm ? `<button class="pay" data-act="pay">${pd ? t('unmark') : t('markPaid')}</button>` : ''}${canEdit() && !sm ? `<button class="edit" data-act="edit" title="Редактировать">✎</button>` : ''}
+      ${canMark() && !sm ? `<button class="pay" data-act="pay">${pd ? t('unmark') : t('markPaid')}</button>` : ''}${canEdit() && !sm ? `<button class="edit" data-act="edit" title="Редактировать">✎</button>` : ''}
     </div>`;
   });
   if (rows.length > st.shown) html += `<button class="more" id="moreBtn">${t('more')(rows.length - st.shown)}</button>`;
@@ -614,7 +614,8 @@ function openEdit(s) {
   loadHistory(s);
   show('#mEdit'); setTimeout(() => f.elements['ФИО'].focus(), 50);
 }
-const LEADER_EDIT = ['ФИО', 'ФИО (лат.)', 'Email', 'Номер студ. билета', 'Пол', 'Дата рождения', 'Страховка до'];
+const LEADER_EDIT = ['ФИО', 'ФИО (лат.)', 'Email', 'Номер студ. билета', 'Пол', 'Дата рождения', 'Страховка до', 'Страховка оплата'];
+const canMark = () => isEditor() || (isLeader() && INS());   // староста — только оплату страховки
 async function loadHistory(s) {
   const h = $('#eHist'); h.hidden = true; h.innerHTML = '';
   if (!s || !canEdit()) return;
@@ -771,7 +772,7 @@ $('#fDate').onchange = e => { st.date = e.target.value; if (st.date !== '') st.s
 /* ===== МАССОВЫЕ ДЕЙСТВИЯ ===== */
 function todayStr() { const d = new Date(); return String(d.getDate()).padStart(2, '0') + '.' + String(d.getMonth() + 1).padStart(2, '0') + '.' + d.getFullYear(); }
 function renderBulk() {
-  const on = st.selMode && isEditor();
+  const on = st.selMode && canMark();
   document.body.classList.toggle('bulk', on);
   $('#bulkBar').hidden = !on;
   $('#selBtn').classList.toggle('on', on);
@@ -903,7 +904,7 @@ $('#langBtn').onclick = () => { lang = lang === 'en' ? 'ru' : 'en'; try { localS
 $('#reset').onclick = () => { Object.assign(st, { q: '', sem: '', grp: '', status: 'all', check: false, noNum: false, date: '' }); $('#fDate').value = ''; $('#q').value = ''; $('#fSem').value = ''; fillGroups(); upd(); };
 $('#list').addEventListener('click', e => {
   if (e.target.id === 'moreBtn') { st.shown += PAGE * 2; render(); return; }
-  if (st.selMode && isEditor()) {
+  if (st.selMode && canMark()) {
     const row = e.target.closest('.row'); if (!row) return;
     const id = row.dataset.id; st.sel.has(id) ? st.sel.delete(id) : st.sel.add(id); render(); return;
   }
