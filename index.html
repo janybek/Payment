@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bitter:wght@600;700&family=Montserrat:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <script>(function(){var t;try{t=localStorage.getItem('theme')}catch(e){}if(!t)t=matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';document.documentElement.setAttribute('data-theme',t)})()</script>
-<title>Оплата контракта — студенты кампуса</title>
+<title>Деканат онлайн — студенты кампуса</title>
 <style>
 /* Фирменные цвета МВШМ (брендбук 2026): Dark Red #AA2927 — основной, Dark Blue #2F3950 — акцент, Black — текст */
 :root{
@@ -217,12 +217,12 @@ fieldset.leadf legend{font-size:13px;font-weight:700;padding:0 6px;color:var(--w
 <div class="topbar">
   <button class="iconbtn" id="menuBtn" aria-label="Меню">☰</button>
   <span class="tlogo"><img src="logo.png" alt="ISM"></span>
-  <b data-i="title">Оплата контракта</b>
+  <b data-i="title">Деканат онлайн</b>
 </div>
 <aside class="side" id="side">
   <div class="side-logo"><span><img src="logo.png" alt="International School of Medicine"></span></div>
   <div class="side-title">
-    <h1 data-i="title">Оплата контракта</h1>
+    <h1 data-i="title">Деканат онлайн</h1>
     <div class="sub" data-i="sub">Студенты кампуса · 2026–2027</div>
   </div>
   <div class="nav-l auth" hidden data-i="navSec">Разделы</div>
@@ -469,7 +469,7 @@ const PAGE = 150;            // сколько строк показывать �
 
 /* ===== ЯЗЫК ===== */
 const L = {
-  ru: { title:'Оплата контракта', sub:'Студенты кампуса · 2026–2027', all:'Всего', paidPl:'Оплатили', unpaidPl:'Не оплатили',
+  ru: { title:'Деканат онлайн', sub:'Студенты кампуса · 2026–2027', all:'Всего', paidPl:'Оплатили', unpaidPl:'Не оплатили',
     navSec:'Разделы', navTools:'Инструменты', moreF:'⚙ Ещё', tipNone:'Требует проверки (причина не указана)',
     search:'Поиск по номеру студ. билета', searchAdm:'Поиск по ФИО или номеру билета', noNum:'Без № билета', enr:n=>'№ '+n, sortNum:'↕ По номеру', segAll:'Все', segP:'🟢 Оплатили', segU:'🔴 Не оплатили', check:'⚠ Проверить',
     sortGrp:'↕ По группам', sortName:'↕ По ФИО (А–Я)', add:'+ Студент', reset:'Сбросить фильтры', loginTitle:'Вход для администрации',
@@ -499,7 +499,7 @@ const L = {
     insStat:'Медстраховка', insRec:'В списке', insValid:'Действует', insSoonL:'Истекает ≤30 дн.', insNoneL:'Нет / истекла',
     xHeadIns:['№ студ. билета','ФИО','ФИО (лат.)','Группа','Курс','Семестр','Страховка до','Оплата страховки','Состояние'], xFileIns:'Страховка',
     xHead:['№ студ. билета','ФИО','ФИО (лат.)','Группа','Курс','Семестр','Статус','Дата оплаты'], xFile:'Оплата' },
-  en: { title:'Contract Payment', sub:'Campus students · 2026–2027', all:'Total', paidPl:'Paid', unpaidPl:'Not paid',
+  en: { title:'Dean\'s Office Online', sub:'Campus students · 2026–2027', all:'Total', paidPl:'Paid', unpaidPl:'Not paid',
     navSec:'Sections', navTools:'Tools', moreF:'⚙ More', tipNone:'Needs checking (no reason given)',
     search:'Search by enrollment number', searchAdm:'Search by name or enrollment number', noNum:'No enrollment №', enr:n=>'№ '+n, sortNum:'↕ By number', segAll:'All', segP:'🟢 Paid', segU:'🔴 Not paid', check:'⚠ To check',
     sortGrp:'↕ By group', sortName:'↕ By name (A–Z)', add:'+ Student', reset:'Reset filters', loginTitle:'Staff login',
