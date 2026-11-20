@@ -951,9 +951,13 @@ function renderRep() {
   const uniq = (k, base) => [...new Set(base.map(x => x[k]).filter(Boolean))];
   const sortRu = a => a.sort((x, y) => x.localeCompare(y, 'ru'));
   rOpts('#rTeacher', sortRu(uniq('Преподаватель', rep)), t('rpAllT'), rf.t || '');
-  rOpts('#rSubj', sortRu(uniq('Предмет', rep.filter(x => !rf.t || x['Преподаватель'] === rf.t))), t('rpAllS'), rf.s || '');
-  rOpts('#rSem', uniq('Семестр', rep).sort((a, b) => a - b), t('rpAllSem'), rf.m || '', v => t('rpSemO')(v));
-  rOpts('#rGrp', uniq('Группа', rep).sort(grpCmp), t('rpAllG'), rf.g || '');
+  // каскад: преподаватель → предмет → семестр → группа (каждый список — только из того, что подходит выше)
+  const byT = rep.filter(x => !rf.t || x['Преподаватель'] === rf.t);
+  rOpts('#rSubj', sortRu(uniq('Предмет', byT)), t('rpAllS'), rf.s || '');
+  const byS = byT.filter(x => !$('#rSubj').value || x['Предмет'] === $('#rSubj').value);
+  rOpts('#rSem', uniq('Семестр', byS).sort((a, b) => a - b), t('rpAllSem'), rf.m || '', v => t('rpSemO')(v));
+  const byM = byS.filter(x => !$('#rSem').value || String(x['Семестр']) === $('#rSem').value);
+  rOpts('#rGrp', uniq('Группа', byM).sort(grpCmp), t('rpAllG'), rf.g || '');
   ['t', 's', 'm', 'g'].forEach((k, i) => rf[k] = [$('#rTeacher'), $('#rSubj'), $('#rSem'), $('#rGrp')][i].value);
   $('#rpSubjList').innerHTML = sortRu(uniq('Предмет', rep)).map(v => `<option value="${esc(v)}">`).join('');
   $('#rpTeachList').innerHTML = sortRu(uniq('Преподаватель', rep)).map(v => `<option value="${esc(v)}">`).join('');
@@ -985,7 +989,12 @@ function renderRep() {
   });
   $('#rList').innerHTML = h;
 }
-['#rTeacher', '#rSubj', '#rSem', '#rGrp'].forEach((sel, i) => $(sel).onchange = e => { rf[['t', 's', 'm', 'g'][i]] = e.target.value; if (i === 0) rf.s = ''; if (i === 2) rf.g = ''; saveRf(); renderRep(); });
+['#rTeacher', '#rSubj', '#rSem', '#rGrp'].forEach((sel, i) => $(sel).onchange = e => {
+  const keys = ['t', 's', 'm', 'g'];
+  rf[keys[i]] = e.target.value;
+  keys.slice(i + 1).forEach(k => rf[k] = '');          // всё, что ниже по каскаду, сбрасываем
+  saveRf(); renderRep();
+});
 let rqT; $('#rq').oninput = () => { clearTimeout(rqT); rqT = setTimeout(renderRep, 150); };
 $('#rReset').onclick = () => { rf.t = rf.s = rf.m = rf.g = ''; $('#rq').value = ''; saveRf(); renderRep(); };
 $('#rList').addEventListener('click', e => {
