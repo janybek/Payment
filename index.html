@@ -228,6 +228,7 @@ fieldset.leadf legend{font-size:13px;font-weight:700;padding:0 6px;color:var(--w
   </div>
   <div class="tools auth" hidden>
     <button class="tool" id="statsBtn" data-i="stats">📊 Статистика</button>
+    <button class="tool" id="visBtn" hidden>👁 Посещения</button>
     <button class="tool adm" id="xlsBtn" hidden data-i="xls">⬇ Скачать Excel</button>
     <button class="tool adm" id="selBtn" hidden data-i="select">☑ Выбрать несколько</button>
   </div>
@@ -380,6 +381,9 @@ fieldset.leadf legend{font-size:13px;font-weight:700;padding:0 6px;color:var(--w
   </form>
 </div>
 
+<!-- Посещения (только администратор) -->
+<div class="modal" id="mVis"><div class="box wide" id="visBox"></div></div>
+
 <!-- Статистика -->
 <div class="modal" id="mStats"><div class="box wide" id="statsBox"></div></div>
 
@@ -475,6 +479,9 @@ let all = [];                // [{id,name,lat,grp,course,sem,paid,raw}]
 let token = store('get', 'tok');
 let user = store('get', 'usr') || '';
 let role = store('get', 'role') || 'editor';
+let siteAdmin = store('get', 'adm') === '1';
+const VID = (() => { try { let v = localStorage.getItem('vid'); if (!v) { v = Math.random().toString(36).slice(2, 10); localStorage.setItem('vid', v); } return v; } catch (e) { return ''; } })();
+function ping(tab) { try { fetch(API, { method: 'POST', body: JSON.stringify({ action: 'ping', token, tab, vid: VID }) }); } catch (e) {} }
 const st = { q: '', sem: '', grp: '', status: 'all', check: false, sort: 'grp', shown: PAGE, date: '', selMode: false, sel: new Set() };
 let deadline = '';
 st.tab = 'pay';
@@ -524,12 +531,13 @@ async function load() {
   $('#list').innerHTML = '<div class="loader"><div class="spin"></div></div>';
   try {
     if (isAdmin()) {
-      const j = await api('adminList');
+      const j = await api('adminList', { vid: VID });
+      siteAdmin = !!j.admin; store('set', 'adm', siteAdmin ? '1' : '0');
       if (j.role) { role = j.role; store('set', 'role', role); }
       deadline = j.deadline || '';
       all = j.students.map(s => ({ id: s['ID'], enr: s['Номер студ. билета'] || '', name: s['ФИО'], lat: s['ФИО (лат.)'], grp: s['Группа'], course: s['Курс'], sem: s['Семестр'], paid: s['Статус оплаты'] === 'Оплатил', pdate: s['Дата оплаты'] || '', insUntil: String(s['Страховка до'] || '').replace(/^'/, ''), insPaid: s['Страховка оплата'] === 'Оплатил', hasIns: !!(s['Страховка до'] || s['Страховка оплата']), check: s['Проверить'] === 'Да', leader: s['Староста'] === 'Да', raw: s }));
     } else {
-      const r = await fetch(API + '?action=list'); const j = await r.json();
+      const r = await fetch(API + '?action=list&vid=' + VID); const j = await r.json();
       if (!j.ok) throw new Error(j.error);
       deadline = j.deadline || '';
       all = j.students.filter(s => s.e).map(s => ({ id: s.e, enr: String(s.e), name: '', lat: '', grp: s.g, course: s.c, sem: s.s, paid: !!s.p }));
@@ -588,6 +596,7 @@ function render() {
   if (!canMark()) { st.selMode = false; st.sel.clear(); }
   $('#selBtn').hidden = !canMark();
   $('#statsBtn').hidden = isLeader();
+  $('#visBtn').hidden = !(isAdmin() && siteAdmin);
   renderDeadline(); renderBulk();
   $('#authBtn').textContent = isAdmin() ? t('out') : t('in');
   $('#who').textContent = isAdmin() ? user + (isAdmin() && role === 'viewer' ? ' 👁' : '') : '';
@@ -780,13 +789,13 @@ $('#loginForm').addEventListener('submit', async e => {
   e.preventDefault(); $('#lBtn').disabled = true; $('#lErr').textContent = '';
   try {
     const j = await api('login', { login: $('#lLogin').value, password: $('#lPass').value });
-    token = j.token; user = j.name; role = j.role || 'editor'; store('set', 'tok', token); store('set', 'usr', user); store('set', 'role', role);
+    token = j.token; user = j.name; role = j.role || 'editor'; siteAdmin = !!j.admin; store('set', 'tok', token); store('set', 'usr', user); store('set', 'role', role); store('set', 'adm', siteAdmin ? '1' : '0');
     $('#lPass').value = ''; hide('#mLogin'); load();
   } catch (err) { $('#lErr').textContent = err.message; }
   $('#lBtn').disabled = false;
 });
 function logout(expired) {
-  token = null; user = ''; role = 'editor'; rep = null; st.tab = 'pay'; store('del', 'tok'); store('del', 'usr'); store('del', 'role'); st.check = false; st.noNum = false;
+  token = null; user = ''; role = 'editor'; rep = null; st.tab = 'pay'; store('del', 'tok'); store('del', 'usr'); store('del', 'role'); store('del', 'adm'); siteAdmin = false; st.check = false; st.noNum = false;
   if (expired) toast(t('expired'));
   load();
 }
@@ -814,6 +823,34 @@ $('#fStatus').onclick = e => { const b = e.target.closest('button'); if (b) { st
 document.querySelectorAll('.stat').forEach(el => el.onclick = () => { st.status = el.dataset.f; upd(); });
 $('#fCheck').onclick = () => { st.check = !st.check; upd(); };
 $('#fNoNum').onclick = () => { st.noNum = !st.noNum; upd(); };
+/* ===== ПОСЕЩЕНИЯ (только администратор сайта) ===== */
+$('#visBtn').onclick = async () => {
+  $('#visBox').innerHTML = '<div class="loader"><div class="spin"></div></div>'; show('#mVis');
+  try {
+    const j = await api('visits');
+    const R = ['Публичная', 'Учитель', 'Деканат', 'Староста'];
+    const sum = (arr, f) => arr.reduce((a, d) => a + f(d), 0);
+    const last7 = j.days.slice(-7), all30 = j.days;
+    const opens = d => R.reduce((a, k) => a + (d.opens[k] || 0), 0);
+    let h = `<h2>👁 Посещения сайта</h2>
+      <div class="stats" style="margin-top:4px">
+        <div class="stat"><b>${sum(last7, opens)}</b><span>Открытий за 7 дней</span></div>
+        <div class="stat"><b>${sum(last7, d => d.uniq)}</b><span>Уникальных за 7 дней*</span></div>
+        <div class="stat"><b>${sum(all30, opens)}</b><span>Открытий за 30 дней</span></div>
+      </div>
+      <h3>По дням (14 дней)</h3><table class="st-tbl"><tr><th>Дата</th><th class="n">Публ.</th><th class="n">Уник.</th><th class="n">Учит.</th><th class="n">Декан.</th><th class="n">Стар.</th><th class="n">Входы</th></tr>`;
+    j.days.slice(-14).reverse().forEach(d => { h += `<tr><td>${esc(d.date.slice(0, 5))}</td>${R.map(k => `<td class="n">${d.opens[k] || ''}</td>`).join('').replace('</td>', '</td><td class="n">' + (d.uniq || '') + '</td>')}<td class="n">${d.logins || ''}</td></tr>`; });
+    h += '</table>';
+    const tabs = Object.entries(j.tabs).sort((a, b) => b[1] - a[1]);
+    if (tabs.length) { h += '<h3>Вкладки (30 дней)</h3><table class="st-tbl">' + tabs.map(([k, n]) => `<tr><td>${esc(k)}</td><td class="n">${n}</td></tr>`).join('') + '</table>'; }
+    if (j.people.length) { h += '<h3>Кто заходит (по логину, 30 дней)</h3><table class="st-tbl"><tr><th>Кто</th><th>Роль</th><th class="n">Действий</th><th>Последний раз</th></tr>' +
+      j.people.map(x => `<tr><td>${esc(x.who)}</td><td>${esc(x.role)}</td><td class="n">${x.n}</td><td>${esc(x.last)}</td></tr>`).join('') + '</table>'; }
+    h += `<p style="color:var(--muted);font-size:12.5px">* Уникальные — по браузеру/устройству, без имён. Полный журнал — лист «Посещения» в таблице.</p>
+      <div class="acts"><button class="btn pri" data-close>${t('close')}</button></div>`;
+    $('#visBox').innerHTML = h;
+  } catch (e) { $('#visBox').innerHTML = `<p class="err">${esc(e.message)}</p><div class="acts"><button class="btn" data-close>${t('close')}</button></div>`; }
+};
+
 /* ===== ПОВТОРНЫЙ КУРС ===== */
 let rep = null;                                         // записи; null — ещё не загружены
 const rf = (() => { try { return JSON.parse(localStorage.getItem('rf') || '{}'); } catch (e) { return {}; } })();   // фильтры запоминаются (учителю удобно)
@@ -954,7 +991,7 @@ $('#insForm').addEventListener('submit', async e => {
   $('#iBtn').disabled = false;
 });
 
-$('#tabs').onclick = e => { const b = e.target.closest('button'); if (!b) return; st.tab = b.dataset.tab; st.status = 'all'; st.date = ''; $('#fDate').value = ''; st.sel.clear(); if (st.tab === 'rep') loadRep(); upd(); };
+$('#tabs').onclick = e => { const b = e.target.closest('button'); if (!b) return; st.tab = b.dataset.tab; st.status = 'all'; st.date = ''; $('#fDate').value = ''; st.sel.clear(); if (st.tab === 'rep') loadRep(); ping({ pay: 'Оплата', ins: 'Медстраховка', rep: 'Повторный курс' }[st.tab]); upd(); };
 $('#fDate').onchange = e => { st.date = e.target.value; if (st.date !== '') st.status = 'p'; upd(); };
 
 /* ===== МАССОВЫЕ ДЕЙСТВИЯ ===== */

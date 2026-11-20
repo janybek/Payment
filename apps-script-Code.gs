@@ -38,9 +38,11 @@ function respond_(obj) {
 function handle_(p) {
   try {
     switch (p.action) {
-      case 'list':      return { ok: true, students: listPublic_(), deadline: deadline_() };
+      case 'list':      track_('public', '', 'Открыл сайт', '', p.vid); return { ok: true, students: listPublic_(), deadline: deadline_() };
       case 'login':     return login_(p.login, p.password);
-      case 'adminList': return adminList_(auth_(p.token));
+      case 'adminList': { const u = auth_(p.token); track_(u.role, u.n, 'Открыл сайт', '', p.vid); const o = adminList_(u); o.admin = !!u.admin; return o; }
+      case 'ping':      { const u = p.token ? auth_(p.token) : { role: 'public', n: '' }; track_(u.role, u.n, 'Вкладка', String(p.tab || '').slice(0, 20), p.vid); return { ok: true }; }
+      case 'visits':    return visits_(auth_(p.token));
       case 'setStatus': return p.kind === 'ins'
         ? setStatus_(insEditor_(p.token, [p.id]), p.id, p.status, 'ins')
         : setStatus_(editor_(p.token), p.id, p.status, p.kind);
@@ -495,7 +497,8 @@ function login_(login, password) {
   const name = isLeader ? leaderName_(u) : u.name;
   const payload = Utilities.base64EncodeWebSafe(Utilities.newBlob(JSON.stringify(
     { u: key, n: name, v: u.ver || 1, e: Date.now() + TOKEN_HOURS * 3600e3 })).getBytes());
-  return { ok: true, token: payload + '.' + sign_(payload), name: name, role: role };
+  track_(role, name, 'Вход', '', '');
+  return { ok: true, token: payload + '.' + sign_(payload), name: name, role: role, admin: !isLeader && !!u.admin };
 }
 
 function sign_(payload) {
@@ -517,7 +520,7 @@ function auth_(token) {
   }
   const u = users_()[d.u];
   if (!u || (u.ver || 1) !== d.v) fail(); // пользователь удалён или сменил пароль
-  return { login: d.u, n: u.name, role: u.role || 'editor' };
+  return { login: d.u, n: u.name, role: u.role || 'editor', admin: !!u.admin };
 }
 
 /* ================= МЕНЮ В ТАБЛИЦЕ (только для владельца) ================= */
@@ -528,6 +531,7 @@ function onOpen() {
     .addItem('Добавить учителя (только просмотр)', 'menuSetViewer')
     .addItem('Срок оплаты (баннер на сайте)', 'menuDeadline')
     .addItem('Список пользователей', 'menuListUsers')
+    .addItem('Администратор сайта (видит посещения)', 'menuAdmin')
     .addItem('Удалить пользователя', 'menuDeleteUser')
     .addToUi();
 }
@@ -556,7 +560,7 @@ function menuSetUser(role) {
   if (pass.length < 8) return ui.alert('Пароль слишком короткий — минимум 8 символов');
   const salt = Utilities.getUuid();
   users[login] = { name: name || (old && old.name) || login, salt: salt, hash: hash_(salt, pass),
-                   ver: old ? (old.ver || 1) + 1 : 1, role: role };
+                   ver: old ? (old.ver || 1) + 1 : 1, role: role, admin: !!(old && old.admin) };
   props_().setProperty('USERS', JSON.stringify(users));
   secret_();
   ui.alert('Готово: ' + login + ' (' + users[login].name + ') — ' + (role === 'viewer' ? 'только просмотр' : 'может изменять') + (old ? '\nСтарые входы этого пользователя сброшены.' : ''));
@@ -664,9 +668,67 @@ function newPassword_() {
   return s;
 }
 
+/* ================= ПОСЕЩЕНИЯ ================= */
+// Лист «Посещения»: каждое открытие сайта, вход и переход по вкладкам. Без имён для публичной страницы —
+// только случайный анонимный код браузера (для подсчёта уникальных посетителей).
+const SHEET_VISITS = 'Посещения';
+const ROLE_RU = { public: 'Публичная', viewer: 'Учитель', editor: 'Деканат', leader: 'Староста' };
+
+function track_(role, who, event, detail, vid) {
+  try {
+    const ss = SpreadsheetApp.getActive();
+    let sh = ss.getSheetByName(SHEET_VISITS);
+    if (!sh) {
+      sh = ss.insertSheet(SHEET_VISITS);
+      sh.appendRow(['Дата', 'Время', 'Роль', 'Кто', 'Событие', 'Детали', 'Посетитель']);
+      sh.getRange(1, 1, 1, 7).setFontWeight('bold'); sh.setFrozenRows(1);
+    }
+    const d = new Date();
+    sh.appendRow([Utilities.formatDate(d, TZ, 'dd.MM.yyyy'), Utilities.formatDate(d, TZ, 'HH:mm'),
+                  ROLE_RU[role] || role, role === 'public' ? '' : who, event, detail || '', String(vid || '').slice(0, 12)]);
+  } catch (e) {}                                       // статистика не должна ломать сайт
+}
+
+/** Сводка посещений за 30 дней — только для администратора сайта. */
+function visits_(user) {
+  if (!user.admin) throw new Error('Только для администратора');
+  const sh = SpreadsheetApp.getActive().getSheetByName(SHEET_VISITS);
+  if (!sh || sh.getLastRow() < 2) return { ok: true, days: [], tabs: {}, people: [] };
+  const n = sh.getLastRow() - 1, from = Math.max(2, sh.getLastRow() - 20000 + 1);
+  const v = sh.getRange(from, 1, sh.getLastRow() - from + 1, 7).getDisplayValues();
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const keys = [];
+  for (let i = 29; i >= 0; i--) { const d = new Date(today); d.setDate(d.getDate() - i); keys.push(Utilities.formatDate(d, TZ, 'dd.MM.yyyy')); }
+  const idx = {}; keys.forEach((k, i) => idx[k] = i);
+  const days = keys.map(k => ({ date: k, opens: { 'Публичная': 0, 'Учитель': 0, 'Деканат': 0, 'Староста': 0 }, uniq: {}, logins: 0 }));
+  const tabs = {}, people = {};
+  v.forEach(r => {
+    const i = idx[r[0]]; if (i === undefined) return;
+    const D = days[i];
+    if (r[4] === 'Открыл сайт') { D.opens[r[2]] = (D.opens[r[2]] || 0) + 1; if (r[6]) D.uniq[r[6]] = 1; }
+    if (r[4] === 'Вход') D.logins++;
+    if (r[4] === 'Вкладка') { const k = r[2] + ' · ' + r[5]; tabs[k] = (tabs[k] || 0) + 1; }
+    if (r[3]) { const p = people[r[3]] ||= { who: r[3], role: r[2], n: 0, last: '' }; p.n++; p.last = r[0] + ' ' + r[1]; }
+  });
+  return { ok: true, total: n,
+    days: days.map(D => ({ date: D.date, opens: D.opens, uniq: Object.keys(D.uniq).length, logins: D.logins })),
+    tabs: tabs, people: Object.values(people).sort((a, b) => b.n - a.n).slice(0, 30) };
+}
+
+function menuAdmin() {
+  const ui = SpreadsheetApp.getUi();
+  const login = (ask_('Администратор сайта', 'Логин, которому показывать статистику посещений (например, ваш)') || '').toLowerCase();
+  if (!login) return;
+  const users = users_();
+  if (!users[login]) return ui.alert('Нет такого пользователя');
+  users[login].admin = !users[login].admin;
+  props_().setProperty('USERS', JSON.stringify(users));
+  ui.alert(login + (users[login].admin ? ' — теперь видит посещения' : ' — больше не видит посещения') + '\nВыйдите и войдите на сайте заново.');
+}
+
 function menuListUsers() {
   const users = users_();
-  const list = Object.keys(users).map(l => '• ' + l + ' — ' + users[l].name + (users[l].role === 'viewer' ? ' (просмотр)' : ' (изменение)')).join('\n');
+  const list = Object.keys(users).map(l => '• ' + l + ' — ' + users[l].name + (users[l].role === 'viewer' ? ' (просмотр)' : ' (изменение)') + (users[l].admin ? ' ★ админ' : '')).join('\n');
   SpreadsheetApp.getUi().alert(list || 'Пользователей пока нет');
 }
 
