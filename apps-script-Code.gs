@@ -50,6 +50,9 @@ function handle_(p) {
       case 'save':      return saveAny_(auth_(p.token), p.student || {});
       case 'setLeader': return setLeader_(editor_(p.token), p.id, !!p.on, p.email, !!p.reset);
       case 'history':   return history_(auth_(p.token), p.id);
+      case 'repeatList':   return repeatList_(auth_(p.token));
+      case 'repeatSave':   return repeatSave_(editor_(p.token), p.rec || {});
+      case 'repeatDelete': return repeatDelete_(editor_(p.token), p.rid);
       case 'delete':    return delete_(editor_(p.token), p.id);
       case 'deleteMany': return deleteMany_(editor_(p.token), p.group, p.semester);
       default:          return { ok: false, error: 'Неизвестное действие' };
@@ -567,6 +570,81 @@ function menuDeadline() {
   if (v && !/^\d{2}\.\d{2}\.\d{4}$/.test(v)) return ui.alert('Формат: дд.мм.гггг');
   if (v) props_().setProperty('DEADLINE', v); else props_().deleteProperty('DEADLINE');
   ui.alert(v ? 'Срок оплаты: ' + v : 'Баннер убран');
+}
+
+/* ================= ПОВТОРНЫЙ КУРС ================= */
+// Лист «Повторный курс»: видят деканат и учителя, меняет только деканат. Студенты и старосты не видят.
+const SHEET_REPEAT = 'Повторный курс';
+const REPEAT_HEAD = ['RID', 'ID студента', 'ФИО (по приказу)', 'Группа', 'Семестр', 'Предмет', 'За семестр',
+                     'Форма контроля', 'Преподаватель', 'Часы', 'Подгруппа', 'Приказ', 'Примечание'];
+
+function repeatSheet_() {
+  const ss = SpreadsheetApp.getActive();
+  let sh = ss.getSheetByName(SHEET_REPEAT);
+  if (!sh) {
+    sh = ss.insertSheet(SHEET_REPEAT);
+    sh.getRange(1, 1, 1, REPEAT_HEAD.length).setValues([REPEAT_HEAD]).setFontWeight('bold');
+    sh.setFrozenRows(1);
+  }
+  return sh;
+}
+
+function readRepeat_() {
+  const sh = repeatSheet_();
+  const v = sh.getDataRange().getDisplayValues();
+  const h = v[0].map(String), rows = [];
+  for (let i = 1; i < v.length; i++) {
+    if (!v[i][0]) continue;
+    const o = { _row: i + 1 };
+    h.forEach((k, j) => { if (k) o[k] = v[i][j]; });
+    rows.push(o);
+  }
+  return { sh: sh, head: h, rows: rows };
+}
+
+function repeatList_(user) {
+  if (user.role !== 'editor' && user.role !== 'viewer') throw new Error('Нет доступа');
+  return { ok: true, rows: readRepeat_().rows.map(r => { delete r._row; return r; }) };
+}
+
+function repeatSave_(user, rec) {
+  const o = {};
+  REPEAT_HEAD.slice(1).forEach(k => { if (k in rec) o[k] = String(rec[k] == null ? '' : rec[k]).trim(); });
+  ['ФИО (по приказу)', 'Группа', 'Предмет'].forEach(k => { if (!o[k]) throw new Error('Заполните поле «' + k + '»'); });
+  ['Семестр', 'За семестр', 'Часы'].forEach(k => { if (o[k] && !/^\d{1,3}$/.test(o[k])) throw new Error('«' + k + '» — только число'); });
+  return withLock_(() => {
+    const db = readRepeat_();
+    const col = {}; db.head.forEach((k, j) => col[k] = j);
+    if (rec.RID) {
+      const r = db.rows.find(x => x.RID === rec.RID);
+      if (!r) throw new Error('Запись не найдена');
+      const ch = [];
+      Object.keys(o).forEach(k => {
+        if (!(k in col) || String(r[k] || '') === o[k]) return;
+        db.sh.getRange(r._row, col[k] + 1).setValue(o[k]); ch.push([k, r[k] || '', o[k]]);
+      });
+      if (ch.length) log_(user, 'Повторный курс: изменено', rec.RID, o['ФИО (по приказу)'],
+                          ch.map(c => c[0] + ': ' + c[1]).join('; '), ch.map(c => c[0] + ': ' + c[2]).join('; '));
+      return { ok: true, rid: rec.RID };
+    }
+    let max = 0;
+    db.rows.forEach(x => { const m = /^R(\d+)$/.exec(x.RID); if (m) max = Math.max(max, +m[1]); });
+    const rid = 'R' + String(max + 1).padStart(4, '0');
+    db.sh.appendRow(db.head.map(k => k === 'RID' ? rid : (o[k] || '')));
+    log_(user, 'Повторный курс: добавлено', rid, o['ФИО (по приказу)'], '', o['Предмет'] + ' · ' + o['Группа']);
+    return { ok: true, rid: rid };
+  });
+}
+
+function repeatDelete_(user, rid) {
+  return withLock_(() => {
+    const db = readRepeat_();
+    const r = db.rows.find(x => x.RID === rid);
+    if (!r) throw new Error('Запись не найдена');
+    db.sh.deleteRow(r._row);
+    log_(user, 'Повторный курс: удалено', rid, r['ФИО (по приказу)'], r['Предмет'] + ' · ' + r['Группа'] + ' · ' + r['Преподаватель'], '');
+    return { ok: true };
+  });
 }
 
 /* ================= СТАРОСТЫ ================= */
