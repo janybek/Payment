@@ -292,6 +292,7 @@ fieldset.leadf legend{font-size:13px;font-weight:700;padding:0 6px;color:var(--w
     <div class="frow" id="actRow" hidden>
       <button class="addbtn" id="addBtn" data-i="add">+ Студент</button>
       <button class="chip" id="selBtn" hidden data-i="select">☑ Выбрать несколько</button>
+      <button class="chip" id="grpEditBtn" hidden></button>
       <button class="chip delmany" id="delManyBtn" hidden></button>
     </div>
   </div>
@@ -431,6 +432,22 @@ fieldset.leadf legend{font-size:13px;font-weight:700;padding:0 6px;color:var(--w
   </form>
 </div>
 
+<!-- Изменить группу: имя / семестр / курс -->
+<div class="modal" id="mGrp">
+  <form class="box" id="grpForm">
+    <h2 id="gTitle"></h2>
+    <p id="gSub" style="margin:-6px 0 12px;color:var(--muted)"></p>
+    <div class="fld"><label data-i="gName">Новое название группы</label><input id="gName" autocomplete="off" autocapitalize="off" placeholder="05-1-25"></div>
+    <div class="frow" style="gap:10px">
+      <div class="fld" style="flex:1"><label data-i="gSem">Семестр</label><input id="gSem" inputmode="numeric" maxlength="2"></div>
+      <div class="fld" style="flex:1"><label data-i="gCourse">Курс</label><input id="gCourse" inputmode="numeric" maxlength="2"></div>
+    </div>
+    <div class="hint" id="gWarn" style="color:var(--warn,#b7791f);font-size:13px;min-height:1em"></div>
+    <div class="err" id="gErr"></div>
+    <div class="acts"><button type="button" class="btn" data-close data-i="cancel">Отмена</button><button class="btn pri" id="gBtn" data-i="gSave">Сохранить</button></div>
+  </form>
+</div>
+
 <!-- Страховка (для старост) -->
 <div class="modal" id="mIns">
   <form class="box" id="insForm">
@@ -477,7 +494,7 @@ const L = {
     semOpt:(c,s)=>`${c} курс · ${s} сем.`, course:c=>`${c} курс`, grpPaid:(p,n)=>`${p}/${n} оплатили`,
     shown:(a,b)=>`Показано: ${a} из ${b}`, none:'Никого не найдено', more:n=>`Показать ещё (${n})`, paid:'Оплатил', unpaid:'Не оплатил',
     markPaid:'✓ Оплатил', unmark:'Снять оплату', loadErr:'Не удалось загрузить данные.', retry:'Повторить', undo:'Отменить',
-    expired:'Сессия истекла — войдите заново', saved:'Сохранено', del:'🗑 Удалить', delSure:'Точно удалить?', deleted:n=>'Удалён: '+n, delGrp:(g,n)=>`🗑 Удалить группу ${g} (${n})`, delSem:(s,n)=>`🗑 Удалить ${s} семестр (${n})`, delGrpSem:(g,s,n)=>`🗑 Удалить группу ${g}, ${s} сем. (${n})`, dmTitle:'Массовое удаление', dmText:n=>`Будет удалено студентов: ${n}. Они перенесутся на лист «Удалённые» в таблице — оттуда их можно вернуть вручную.`, dmLabel:w=>`Для подтверждения введите: ${w}`, dmBtn:n=>`Удалить ${n}`, dmDone:n=>`Удалено: ${n}`, added:id=>'Добавлен '+id, err:'Ошибка: ', lang:'EN',
+    expired:'Сессия истекла — войдите заново', saved:'Сохранено', del:'🗑 Удалить', delSure:'Точно удалить?', deleted:n=>'Удалён: '+n, delGrp:(g,n)=>`🗑 Удалить группу ${g} (${n})`, delSem:(s,n)=>`🗑 Удалить ${s} семестр (${n})`, delGrpSem:(g,s,n)=>`🗑 Удалить группу ${g}, ${s} сем. (${n})`, dmTitle:'Массовое удаление', dmText:n=>`Будет удалено студентов: ${n}. Они перенесутся на лист «Удалённые» в таблице — оттуда их можно вернуть вручную.`, dmLabel:w=>`Для подтверждения введите: ${w}`, dmBtn:n=>`Удалить ${n}`, dmDone:n=>`Удалено: ${n}`, grpEdit:g=>`✎ Изменить группу ${g}`, gTitle:'Изменить группу', gSub:(g,s,n)=>`${g}${s?', '+s+' сем.':''} · студентов: ${n}`, gName:'Новое название группы', gSem:'Семестр', gCourse:'Курс', gSave:'Сохранить', gMerge:'Объединить', gFmt:'Обычно название выглядит так: 05-1-25', gNoChange:'Ничего не изменено', gDone:(n,r)=>`Изменено студентов: ${n}`+(r?` · повт. курс: ${r}`:''), added:id=>'Добавлен '+id, err:'Ошибка: ', lang:'EN',
     dAll:'Дата оплаты: любая', dToday:'Оплатили сегодня', d7:'Оплатили за 7 дней', d30:'Оплатили за 30 дней',
     stats:'📊 Статистика', xls:'⬇ Скачать Excel', select:'☑ Выбрать несколько', selOn:'☑ Выбор: вкл.',
     bbCount:n=>`Выбрано: ${n}`, bbAll:n=>`Все показанные (${n})`, bbPaid:'✓ Оплатили', bbUnpaid:'✗ Не оплатили', bbDone:n=>`Изменено: ${n}`,
@@ -507,7 +524,7 @@ const L = {
     semOpt:(c,s)=>`Year ${c} · Sem ${s}`, course:c=>`Year ${c}`, grpPaid:(p,n)=>`${p}/${n} paid`,
     shown:(a,b)=>`Showing ${a} of ${b}`, none:'No students found', more:n=>`Show more (${n})`, paid:'Paid', unpaid:'Not paid',
     markPaid:'✓ Paid', unmark:'Unmark', loadErr:'Could not load data.', retry:'Retry', undo:'Undo',
-    expired:'Session expired — please sign in again', saved:'Saved', del:'🗑 Delete', delSure:'Delete for sure?', deleted:n=>'Deleted: '+n, delGrp:(g,n)=>`🗑 Delete group ${g} (${n})`, delSem:(s,n)=>`🗑 Delete semester ${s} (${n})`, delGrpSem:(g,s,n)=>`🗑 Delete group ${g}, sem ${s} (${n})`, dmTitle:'Bulk delete', dmText:n=>`${n} students will be deleted. They will be moved to the «Удалённые» sheet in the spreadsheet and can be restored manually.`, dmLabel:w=>`To confirm, type: ${w}`, dmBtn:n=>`Delete ${n}`, dmDone:n=>`Deleted: ${n}`, added:id=>'Added '+id, err:'Error: ', lang:'RU',
+    expired:'Session expired — please sign in again', saved:'Saved', del:'🗑 Delete', delSure:'Delete for sure?', deleted:n=>'Deleted: '+n, delGrp:(g,n)=>`🗑 Delete group ${g} (${n})`, delSem:(s,n)=>`🗑 Delete semester ${s} (${n})`, delGrpSem:(g,s,n)=>`🗑 Delete group ${g}, sem ${s} (${n})`, dmTitle:'Bulk delete', dmText:n=>`${n} students will be deleted. They will be moved to the «Удалённые» sheet in the spreadsheet and can be restored manually.`, dmLabel:w=>`To confirm, type: ${w}`, dmBtn:n=>`Delete ${n}`, dmDone:n=>`Deleted: ${n}`, grpEdit:g=>`✎ Edit group ${g}`, gTitle:'Edit group', gSub:(g,s,n)=>`${g}${s?', sem '+s:''} · students: ${n}`, gName:'New group name', gSem:'Semester', gCourse:'Year', gSave:'Save', gMerge:'Merge', gFmt:'Group names usually look like: 05-1-25', gNoChange:'Nothing changed', gDone:(n,r)=>`Students updated: ${n}`+(r?` · repeat courses: ${r}`:''), added:id=>'Added '+id, err:'Error: ', lang:'RU',
     dAll:'Payment date: any', dToday:'Paid today', d7:'Paid in last 7 days', d30:'Paid in last 30 days',
     stats:'📊 Statistics', xls:'⬇ Download Excel', select:'☑ Select several', selOn:'☑ Selecting: on',
     bbCount:n=>`Selected: ${n}`, bbAll:n=>`All shown (${n})`, bbPaid:'✓ Paid', bbUnpaid:'✗ Not paid', bbDone:n=>`Updated: ${n}`,
@@ -588,7 +605,7 @@ async function api(action, data = {}) {
   const r = await fetch(API, { method: 'POST', body: JSON.stringify({ action, token, ...data }) });
   const j = await r.json();
   if (!j.ok && j.auth) { logout(true); }
-  if (!j.ok) throw new Error(j.error || 'Ошибка');
+  if (!j.ok) { const e = new Error(j.error || 'Ошибка'); e.j = j; throw e; }
   return j;
 }
 
@@ -694,6 +711,8 @@ function render() {
   document.querySelector('#sort option[value=name]').textContent = isAdmin() ? t('sortName') : t('sortNum');
   const dm = $('#delManyBtn'), scope = all.filter(s => (!st.sem || String(s.sem) === st.sem) && (!st.grp || s.grp === st.grp));
   dm.hidden = !isEditor() || (!st.sem && !st.grp) || !scope.length;
+  const ge = $('#grpEditBtn'); ge.hidden = !isEditor() || !st.grp || !scope.length;
+  if (!ge.hidden) ge.textContent = t('grpEdit')(st.grp);
   if (!dm.hidden) dm.textContent = st.grp && st.sem ? t('delGrpSem')(st.grp, st.sem, scope.length) : st.grp ? t('delGrp')(st.grp, scope.length) : t('delSem')(st.sem, scope.length);
 
   let rows = filtered(false);
@@ -852,6 +871,39 @@ $('#delForm').addEventListener('submit', async e => {
     const j = await api('deleteMany', dmScope);
     hide('#mDel'); st.grp = ''; st.sem = ''; toast(t('dmDone')(j.count)); load();
   } catch (err) { $('#dmErr').textContent = err.message; $('#dmBtn').disabled = false; }
+});
+
+/* ===== ИЗМЕНИТЬ ГРУППУ (имя / семестр / курс) ===== */
+let gScope = {}, gMerge = false, gCourseTouched = false;
+const grpFmtOk = v => /^\d{2}-\d-\d{2}$/.test(v);
+$('#grpEditBtn').onclick = () => {
+  const sc = all.filter(s => s.grp === st.grp && (!st.sem || String(s.sem) === st.sem));
+  if (!sc.length) return;
+  gScope = { group: st.grp, semester: st.sem }; gMerge = false; gCourseTouched = false;
+  $('#gTitle').textContent = t('gTitle'); $('#gSub').textContent = t('gSub')(st.grp, st.sem, sc.length);
+  $('#gName').value = st.grp; $('#gSem').value = sc[0].sem || ''; $('#gCourse').value = sc[0].course || '';
+  $('#gWarn').textContent = ''; $('#gErr').textContent = ''; $('#gBtn').textContent = t('gSave'); $('#gBtn').disabled = false;
+  show('#mGrp'); setTimeout(() => $('#gName').focus(), 50);
+};
+$('#gName').oninput = e => { const v = e.target.value.trim(); $('#gWarn').textContent = v && !grpFmtOk(v) ? t('gFmt') : ''; gMerge = false; $('#gBtn').textContent = t('gSave'); $('#gErr').textContent = ''; };
+$('#gSem').oninput = e => { const n = +e.target.value; if (!gCourseTouched && n) $('#gCourse').value = Math.ceil(n / 2); };
+$('#gCourse').oninput = () => { gCourseTouched = true; };
+$('#grpForm').addEventListener('submit', async e => {
+  e.preventDefault();
+  const to = $('#gName').value.trim(), ns = $('#gSem').value.trim(), nc = $('#gCourse').value.trim();
+  const sc = all.filter(s => s.grp === gScope.group && (!gScope.semester || String(s.sem) === gScope.semester));
+  const sameSem = !ns || sc.every(s => String(s.sem) === ns), sameC = !nc || sc.every(s => String(s.course) === nc);
+  if (to === gScope.group && sameSem && sameC) { $('#gErr').textContent = t('gNoChange'); return; }
+  $('#gBtn').disabled = true; $('#gErr').textContent = '';
+  try {
+    const j = await api('groupEdit', { ...gScope, to, newSem: ns, newCourse: nc, merge: gMerge });
+    hide('#mGrp'); st.grp = j.group; if (gScope.semester) st.sem = j.semester; rep = null;
+    toast(t('gDone')(j.count, j.repeat)); load();
+  } catch (err) {
+    $('#gErr').textContent = err.message;
+    if (err.j && err.j.exists) { gMerge = true; $('#gBtn').textContent = t('gMerge'); }
+    $('#gBtn').disabled = false;
+  }
 });
 
 /* ===== ВХОД / ВЫХОД ===== */

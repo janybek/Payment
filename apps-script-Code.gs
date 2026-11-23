@@ -57,6 +57,7 @@ function handle_(p) {
       case 'repeatDelete': return repeatDelete_(editor_(p.token), p.rid);
       case 'delete':    return delete_(editor_(p.token), p.id);
       case 'deleteMany': return deleteMany_(editor_(p.token), p.group, p.semester);
+      case 'groupEdit': return groupEdit_(editor_(p.token), p);
       default:          return { ok: false, error: 'Неизвестное действие' };
     }
   } catch (err) {
@@ -360,7 +361,9 @@ function save_(user, st) {
           if ((f === INS_UNTIL || f === INS_PAID) && data[f]) ensureCol_(db, f); else return;
         }
         if (String(s[f]) === String(data[f])) return;
-        db.sh.getRange(s._row, db.col[f] + 1).setValue(f === INS_UNTIL && data[f] ? "'" + data[f] : data[f]);
+        const cell = db.sh.getRange(s._row, db.col[f] + 1);
+        if (f === 'Группа') cell.setNumberFormat('@');            // иначе Таблицы превращают «05-1-25» в дату
+        cell.setValue(f === INS_UNTIL && data[f] ? "'" + data[f] : data[f]);
         changes.push([f, s[f], data[f]]);
       });
       const sc = changes.find(c => c[0] === 'Статус оплаты');
@@ -394,6 +397,7 @@ function save_(user, st) {
       return h in data ? data[h] : '';
     });
     db.sh.appendRow(row);
+    db.sh.getRange(db.sh.getLastRow(), db.col['Группа'] + 1).setNumberFormat('@').setValue(data['Группа']);
     log_(user, 'Добавлен', id, data['ФИО'], '', data['Группа'] + ', ' + data['Статус оплаты']);
     return { ok: true, id: id };
   });
@@ -453,6 +457,68 @@ function deleteMany_(user, group, semester) {
     const what = [group ? 'группа ' + group : '', semester ? 'семестр ' + semester : ''].filter(String).join(', ');
     log_(user, 'Удалено массово', '', what, gone.length + ' студ.', 'перенесены на лист «Удалённые»');
     return { ok: true, count: gone.length };
+  });
+}
+
+/**
+ * Изменить группу: переименовать и/или перевести на другой семестр/курс.
+ * p: group (текущее имя), semester (фильтр, можно пусто), to (новое имя),
+ *    newSem, newCourse (можно пусто — не менять), merge (true — объединить с существующей группой).
+ * Новое имя записывается и на лист «Повторный курс», если в старой группе никого не осталось.
+ */
+function groupEdit_(user, p) {
+  const group = String(p.group || '').trim(), sem = String(p.semester || '').trim();
+  const to = String(p.to || '').trim();
+  const nSem = String(p.newSem == null ? '' : p.newSem).trim(), nCourse = String(p.newCourse == null ? '' : p.newCourse).trim();
+  if (!group) throw new Error('Не выбрана группа');
+  if (!to) throw new Error('Укажите название группы');
+  if (to.length > 30) throw new Error('Слишком длинное название');
+  [['Семестр', nSem], ['Курс', nCourse]].forEach(x => { if (x[1] && !/^\d{1,2}$/.test(x[1])) throw new Error('«' + x[0] + '» — только число'); });
+  return withLock_(() => {
+    const db = readAll_();
+    const inScope = s => s['Группа'] === group && (!sem || String(s['Семестр']) === sem);
+    const scope = db.rows.filter(inScope);
+    if (!scope.length) throw new Error('Группа ' + group + ' не найдена');
+    if (to !== group && !p.merge) {
+      const other = db.rows.filter(s => s['Группа'] === to && !inScope(s));
+      if (other.length) return { ok: false, exists: true, count: other.length,
+        error: 'Группа ' + to + ' уже есть (' + other.length + ' студ.). Объединить?' };
+    }
+    const cG = db.col['Группа'] + 1, cS = db.col['Семестр'], cC = db.col['Курс'];
+    const stamp = now_(), logRows = [];
+    let chSem = false, chCourse = false;
+    scope.forEach(s => {
+      const before = [], after = [];
+      if (to !== group) { db.sh.getRange(s._row, cG).setNumberFormat('@').setValue(to); before.push('Группа: ' + group); after.push('Группа: ' + to); }
+      if (nSem && cS != null && String(s['Семестр']) !== nSem) { db.sh.getRange(s._row, cS + 1).setValue(Number(nSem)); before.push('Семестр: ' + s['Семестр']); chSem = true; after.push('Семестр: ' + nSem); }
+      if (nCourse && cC != null && String(s['Курс']) !== nCourse) { db.sh.getRange(s._row, cC + 1).setValue(Number(nCourse)); before.push('Курс: ' + s['Курс']); chCourse = true; after.push('Курс: ' + nCourse); }
+      if (!before.length) return;
+      stamp_(db, s._row, user);
+      logRows.push([stamp, user.n, 'Группа (массово)', s['ID'], s['ФИО'], before.join('; '), after.join('; ')]);
+    });
+    // Повторный курс: переименовать, только если в старой группе никого не осталось
+    let rep = 0;
+    const left = db.rows.some(s => s['Группа'] === group && !inScope(s));
+    if (to !== group && !left) {
+      const rsh = SpreadsheetApp.getActive().getSheetByName(SHEET_REPEAT);
+      if (rsh && rsh.getLastRow() > 1) {
+        const head = rsh.getRange(1, 1, 1, rsh.getLastColumn()).getDisplayValues()[0];
+        const rc = head.indexOf('Группа') + 1;
+        if (rc) {
+          const n = rsh.getLastRow() - 1, rng = rsh.getRange(2, rc, n, 1);
+          const v = rng.getDisplayValues().map(r => { if (r[0] === group) { rep++; return [to]; } return [r[0]]; });
+          if (rep) { rng.setNumberFormat('@'); rng.setValues(v); }
+        }
+      }
+    }
+    if (logRows.length) {
+      const lg = sheet_(SHEET_LOG);
+      lg.getRange(lg.getLastRow() + 1, 1, logRows.length, 7).setValues(logRows);
+      log_(user, 'Группа изменена', '', group + (sem ? ', ' + sem + ' сем.' : ''),
+        scope.length + ' студ.', [to !== group ? 'имя: ' + to : '', chSem ? 'семестр: ' + nSem : '', chCourse ? 'курс: ' + nCourse : '',
+        rep ? 'повт. курс: ' + rep : '', p.merge ? 'объединено' : ''].filter(String).join(', '));
+    }
+    return { ok: true, count: logRows.length, repeat: rep, group: to, semester: nSem || sem };
   });
 }
 
@@ -625,7 +691,9 @@ function repeatSave_(user, rec) {
       const ch = [];
       Object.keys(o).forEach(k => {
         if (!(k in col) || String(r[k] || '') === o[k]) return;
-        db.sh.getRange(r._row, col[k] + 1).setValue(o[k]); ch.push([k, r[k] || '', o[k]]);
+        const cell = db.sh.getRange(r._row, col[k] + 1);
+        if (k === 'Группа') cell.setNumberFormat('@');
+        cell.setValue(o[k]); ch.push([k, r[k] || '', o[k]]);
       });
       if (ch.length) log_(user, 'Повторный курс: изменено', rec.RID, o['ФИО (по приказу)'],
                           ch.map(c => c[0] + ': ' + c[1]).join('; '), ch.map(c => c[0] + ': ' + c[2]).join('; '));
@@ -635,6 +703,7 @@ function repeatSave_(user, rec) {
     db.rows.forEach(x => { const m = /^R(\d+)$/.exec(x.RID); if (m) max = Math.max(max, +m[1]); });
     const rid = 'R' + String(max + 1).padStart(4, '0');
     db.sh.appendRow(db.head.map(k => k === 'RID' ? rid : (o[k] || '')));
+    if ('Группа' in col) db.sh.getRange(db.sh.getLastRow(), col['Группа'] + 1).setNumberFormat('@').setValue(o['Группа']);
     log_(user, 'Повторный курс: добавлено', rid, o['ФИО (по приказу)'], '', o['Предмет'] + ' · ' + o['Группа']);
     return { ok: true, rid: rid };
   });
