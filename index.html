@@ -95,6 +95,11 @@ select{padding:9px 10px;border:1px solid var(--line);border-radius:10px;backgrou
 .morebtn i{font-style:normal;background:var(--red);color:#fff;border-radius:999px;padding:0 6px;font-size:12px;margin-left:4px}
 .more-f{display:flex;flex-wrap:wrap;gap:8px;border-top:1px dashed var(--line);padding-top:8px}
 .more-f select{flex:1 1 170px}
+.fchips{display:flex;flex-wrap:wrap;gap:6px}
+.fchips button{border:1px solid var(--line);background:var(--soft);border-radius:999px;padding:4px 10px;font-size:13px;cursor:pointer;color:var(--ink);max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.fchips button::after{content:' ✕';color:var(--muted)}
+.seg button b{font-weight:600;margin-left:4px;opacity:.75}
+#rActs>*{flex:1 1 0}
 .addbtn{background:var(--red);color:#fff;border:0;border-radius:10px;padding:9px 14px;cursor:pointer;font-weight:600}
 .addbtn:hover{background:var(--red-2)}
 
@@ -217,6 +222,7 @@ fieldset.leadf legend{font-size:13px;font-weight:700;padding:0 6px;color:var(--w
   .morebtn span{font-size:0}
   .morebtn span::before{content:'⚙';font-size:17px}
   .morebtn{padding:8px 10px}
+  #rResSeg .w{display:none}
 }
 </style>
 </head>
@@ -320,14 +326,24 @@ fieldset.leadf legend{font-size:13px;font-weight:700;padding:0 6px;color:var(--w
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
         <input id="rq" type="search" data-ip="rpSearch" placeholder="Поиск: ФИО, предмет, группа" autocomplete="off">
       </div>
-      <select id="rOrd"></select>
-      <select id="rTeacher"></select>
-      <select id="rSubj"></select>
-      <select id="rSem"></select>
-      <select id="rGrp"></select>
-      <select id="rRes"></select>
-      <button class="addbtn adm" id="rAdd" hidden data-i="rpAdd">+ Запись</button>
-      <button class="tool adm" id="rXls" hidden data-i="xls">⬇ Скачать Excel</button>
+      <div class="frow">
+        <select id="rTeacher"></select>
+        <select id="rSubj"></select>
+        <button class="chip morebtn" id="rMoreBtn" type="button"><span data-i="moreF">⚙ Ещё</span><i id="rMoreN" hidden></i></button>
+      </div>
+      <div class="more-f" id="rMoreF" hidden>
+        <select id="rOrd"></select>
+        <select id="rSem"></select>
+        <select id="rGrp"></select>
+      </div>
+      <div class="fchips" id="rChips" hidden></div>
+      <div class="seg" id="rResSeg">
+        <button data-v="" class="on"></button><button data-v="Прошёл"></button><button data-v="Не прошёл"></button><button data-v="-"></button>
+      </div>
+      <div class="frow adm" id="rActs" hidden>
+        <button class="addbtn" id="rAdd" data-i="rpAdd">+ Запись</button>
+        <button class="chip" id="rXls" data-i="xls">⬇ Скачать Excel</button>
+      </div>
     </div>
     <div class="meta"><span id="rCount"></span><a id="rReset" data-i="reset">Сбросить фильтры</a></div>
     <div id="rList" class="list"></div>
@@ -531,7 +547,7 @@ const L = {
     sxPayHead:by=>[by === 'sem' ? 'Семестр' : 'Группа', ...(by === 'grp' ? ['Семестр'] : []), 'Всего', 'Оплатили', 'Не оплатили', '% оплаты'],
     iUntil:'Страховка до (дд.мм.гггг)', iPaid:'Оплата страховки', iNoneL:'Страховки нет', iSave:'Сохранить',
     leaderB:'староста', tabRep:'🔁 Повторный курс', rpRecs:'Записей', rpStud:'Студентов', rpSubj:'Предметов',
-    rpSearch:'Поиск: ФИО, предмет, группа', rpAdd:'+ Запись', rpAllT:'Все преподаватели', rpAllS:'Все предметы', rpAllSem:'Все семестры', rpAllG:'Все группы', rpAllO:'Все приказы', rpResAll:'Все результаты', rpResOk:'✅ Прошли', rpResNo:'❌ Не прошли', rpResNone:'⏳ Без результата', rpOk:'✓ Прошёл', rpNo:'✗ Не прошёл', rpOkB:'✅ Прошёл', rpNoB:'❌ Не прошёл', rpResL:'Результат', rpPhone:'Телефон студента', rpResSum:(o,n)=>` · ✅ ${o} · ❌ ${n}`,
+    rpSearch:'Поиск: ФИО, предмет, группа', rpAdd:'+ Запись', rpAllT:'Все преподаватели', rpAllS:'Все предметы', rpAllSem:'Все семестры', rpAllG:'Все группы', rpAllO:'Все приказы', rpResAll:'Все результаты', rpResOk:'✅ Прошли', rpResNo:'❌ Не прошли', rpResNone:'⏳ Без результата', rpOk:'✓ Прошёл', rpNo:'✗ Не прошёл', rpOkB:'✅ Прошёл', rpNoB:'❌ Не прошёл', rpResL:'Результат', rpPhone:'Телефон студента', rpSegAll:'Все', rpSegOk:'Прошли', rpSegNo:'Не прошли', rpSegNone:'Без результата', chOrd:'Приказ', chSem:'Семестр', chGrp:'Группа', rpResSum:(o,n)=>` · ✅ ${o} · ❌ ${n}`,
     rpFor:n=>`за ${n} сем.`, rpH:n=>`${n} ч.`, rpN:n=>`${n} студ.`, rpSubG:n=>`${n} подгруппа`, rpNb:'нет в базе', rpSemO:n=>`${n} семестр`,
     rpCount:(a,b)=>`Показано записей: ${a} из ${b}`, rpNew:'Новая запись', rpEdit:'Запись', rpDelSure:'Точно удалить?',
     rpXHead:['Предмет','За семестр','Форма контроля','Преподаватель','Часы','Подгруппа','ФИО (по приказу)','Группа','Семестр','№ студ. билета','Приказ','Результат','Телефон'], rpXFile:'Повторный_курс',
@@ -561,7 +577,7 @@ const L = {
     sxPayHead:by=>[by === 'sem' ? 'Semester' : 'Group', ...(by === 'grp' ? ['Semester'] : []), 'Total', 'Paid', 'Not paid', '% paid'],
     iUntil:'Insurance valid until (dd.mm.yyyy)', iPaid:'Insurance payment', iNoneL:'No insurance', iSave:'Save',
     leaderB:'group leader', tabRep:'🔁 Repeat courses', rpRecs:'Entries', rpStud:'Students', rpSubj:'Subjects',
-    rpSearch:'Search: name, subject, group', rpAdd:'+ Entry', rpAllT:'All teachers', rpAllS:'All subjects', rpAllSem:'All semesters', rpAllG:'All groups', rpAllO:'All orders', rpResAll:'All results', rpResOk:'✅ Passed', rpResNo:'❌ Failed', rpResNone:'⏳ No result', rpOk:'✓ Passed', rpNo:'✗ Failed', rpOkB:'✅ Passed', rpNoB:'❌ Failed', rpResL:'Result', rpPhone:'Student phone', rpResSum:(o,n)=>` · ✅ ${o} · ❌ ${n}`,
+    rpSearch:'Search: name, subject, group', rpAdd:'+ Entry', rpAllT:'All teachers', rpAllS:'All subjects', rpAllSem:'All semesters', rpAllG:'All groups', rpAllO:'All orders', rpResAll:'All results', rpResOk:'✅ Passed', rpResNo:'❌ Failed', rpResNone:'⏳ No result', rpOk:'✓ Passed', rpNo:'✗ Failed', rpOkB:'✅ Passed', rpNoB:'❌ Failed', rpResL:'Result', rpPhone:'Student phone', rpSegAll:'All', rpSegOk:'Passed', rpSegNo:'Failed', rpSegNone:'No result', chOrd:'Order', chSem:'Semester', chGrp:'Group', rpResSum:(o,n)=>` · ✅ ${o} · ❌ ${n}`,
     rpFor:n=>`for sem ${n}`, rpH:n=>`${n} h`, rpN:n=>`${n} students`, rpSubG:n=>`subgroup ${n}`, rpNb:'not in base', rpSemO:n=>`Semester ${n}`,
     rpCount:(a,b)=>`Showing ${a} of ${b} entries`, rpNew:'New entry', rpEdit:'Entry', rpDelSure:'Delete for sure?',
     rpXHead:['Subject','For semester','Assessment','Teacher','Hours','Subgroup','Name (as in order)','Group','Semester','Enrollment №','Order','Result','Phone'], rpXFile:'Repeat_courses',
@@ -1015,10 +1031,10 @@ function rOpts(sel, vals, all, cur, label) {
   $(sel).innerHTML = `<option value="">${all}</option>` + vals.map(v => `<option value="${esc(v)}">${esc(label ? label(v) : v)}</option>`).join('');
   $(sel).value = vals.includes(cur) ? cur : '';
 }
-function rFiltered() {
+function rFiltered(skipRes) {
   const q = norm($('#rq').value);
   return rep.filter(x =>
-    (!rf.o || x['Приказ'] === rf.o) && (!rf.r || (rf.r === '-' ? !x['Результат'] : x['Результат'] === rf.r)) &&
+    (!rf.o || x['Приказ'] === rf.o) && (skipRes || !rf.r || (rf.r === '-' ? !x['Результат'] : x['Результат'] === rf.r)) &&
     (!rf.t || x['Преподаватель'] === rf.t) && (!rf.s || x['Предмет'] === rf.s) &&
     (!rf.m || String(x['Семестр']) === rf.m) && (!rf.g || x['Группа'] === rf.g) &&
     (!q || q.split(' ').every(w => norm(x['ФИО (по приказу)'] + ' ' + x['Предмет'] + ' ' + x['Группа'] + ' ' + x['Преподаватель'] + ' ' + (stuById[x['ID студента']] || {}).lat).includes(w))));
@@ -1040,15 +1056,24 @@ function renderRep() {
   const byM = byS.filter(x => !$('#rSem').value || String(x['Семестр']) === $('#rSem').value);
   rOpts('#rGrp', uniq('Группа', byM).sort(grpCmp), t('rpAllG'), rf.g || '');
   ['o', 't', 's', 'm', 'g'].forEach((k, i) => rf[k] = [$('#rOrd'), $('#rTeacher'), $('#rSubj'), $('#rSem'), $('#rGrp')][i].value);
-  $('#rRes').innerHTML = [['', t('rpResAll')], ['Прошёл', t('rpResOk')], ['Не прошёл', t('rpResNo')], ['-', t('rpResNone')]].map(o => `<option value="${o[0]}">${o[1]}</option>`).join('');
-  $('#rRes').value = rf.r || '';
+  // результат — сегменты со счётчиками (по всем фильтрам, кроме самого результата)
+  const noRes = rFiltered(true), cnt = v => noRes.filter(x => v === '' ? true : v === '-' ? !x['Результат'] : x['Результат'] === v).length;
+  const segL = { '': ['', 'rpSegAll'], 'Прошёл': ['✅ ', 'rpSegOk'], 'Не прошёл': ['❌ ', 'rpSegNo'], '-': ['⏳ ', 'rpSegNone'] };
+  document.querySelectorAll('#rResSeg button').forEach(b => { const L = segL[b.dataset.v];
+    b.innerHTML = `${L[0]}<span${b.dataset.v ? ' class="w"' : ''}>${t(L[1])}</span><b>${cnt(b.dataset.v)}</b>`; b.title = t(L[1]);
+    b.classList.toggle('on', (rf.r || '') === b.dataset.v); });
+  // «Ещё»: сколько скрытых фильтров включено + чипсы, чтобы их было видно и при свёрнутой панели
+  const hid = [['o', 'chOrd', '#rOrd'], ['m', 'chSem', '#rSem'], ['g', 'chGrp', '#rGrp']].filter(h => rf[h[0]]);
+  $('#rMoreN').hidden = !hid.length; $('#rMoreN').textContent = hid.length;
+  $('#rChips').hidden = !hid.length || !$('#rMoreF').hidden;
+  $('#rChips').innerHTML = hid.map(h => `<button type="button" data-k="${h[0]}">${t(h[1])}: ${esc($(h[2]).selectedOptions[0] ? $(h[2]).selectedOptions[0].textContent : rf[h[0]])}</button>`).join('');
   $('#rpSubjList').innerHTML = sortRu(uniq('Предмет', rep)).map(v => `<option value="${esc(v)}">`).join('');
   $('#rpTeachList').innerHTML = sortRu(uniq('Преподаватель', rep)).map(v => `<option value="${esc(v)}">`).join('');
   const rows = rFiltered();
   $('#rN').textContent = rows.length;
   $('#rS').textContent = new Set(rows.map(x => x['ФИО (по приказу)'] + x['Группа'])).size;
   $('#rB').textContent = new Set(rows.map(rKey)).size;
-  $('#rCount').textContent = t('rpCount')(rows.length, rep.length) + t('rpResSum')(rows.filter(x => x['Результат'] === 'Прошёл').length, rows.filter(x => x['Результат'] === 'Не прошёл').length);
+  $('#rCount').textContent = t('rpCount')(rows.length, rep.length);
   if (!rows.length) { $('#rList').innerHTML = `<div class="empty">${t('none')}</div>`; return; }
   const blocks = {};
   rows.forEach(x => (blocks[rKey(x)] ||= []).push(x));
@@ -1085,7 +1110,10 @@ function renderRep() {
   saveRf(); renderRep();
 });
 let rqT; $('#rq').oninput = () => { clearTimeout(rqT); rqT = setTimeout(renderRep, 150); };
-$('#rRes').onchange = e => { rf.r = e.target.value; saveRf(); renderRep(); };
+$('#rResSeg').onclick = e => { const b = e.target.closest('button'); if (!b) return; rf.r = b.dataset.v; saveRf(); renderRep(); };
+$('#rMoreBtn').onclick = () => { $('#rMoreF').hidden = !$('#rMoreF').hidden; renderRep(); };
+$('#rChips').onclick = e => { const b = e.target.closest('button'); if (!b) return;
+  rf[b.dataset.k] = ''; saveRf(); renderRep(); };    // снять один фильтр (остальные остаются — они только шире)
 $('#rReset').onclick = () => { rf.o = rf.r = rf.t = rf.s = rf.m = rf.g = ''; $('#rq').value = ''; saveRf(); renderRep(); };
 $('#rList').addEventListener('click', e => {
   const b = e.target.closest('[data-ract]'); if (!b || !(isEditor() || isLeader())) return;
