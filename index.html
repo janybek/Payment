@@ -95,6 +95,8 @@ select{padding:9px 10px;border:1px solid var(--line);border-radius:10px;backgrou
 .morebtn i{font-style:normal;background:var(--red);color:#fff;border-radius:999px;padding:0 6px;font-size:12px;margin-left:4px}
 .more-f{display:flex;flex-wrap:wrap;gap:8px;border-top:1px dashed var(--line);padding-top:8px}
 .more-f select{flex:1 1 170px}
+.remember{display:flex;align-items:center;gap:8px;font-size:14px;color:var(--muted);margin:2px 0 4px;cursor:pointer}
+.remember input{width:18px;height:18px;margin:0;accent-color:var(--red)}
 .fchips{display:flex;flex-wrap:wrap;gap:6px}
 .fchips button{border:1px solid var(--line);background:var(--soft);border-radius:999px;padding:4px 10px;font-size:13px;cursor:pointer;color:var(--ink);max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .fchips button::after{content:' ✕';color:var(--muted)}
@@ -356,6 +358,7 @@ fieldset.leadf legend{font-size:13px;font-weight:700;padding:0 6px;color:var(--w
     <h2 data-i="loginTitle">Вход для администрации</h2>
     <div class="fld"><label data-i="login">Логин</label><input id="lLogin" autocomplete="username" autocapitalize="off" required></div>
     <div class="fld"><label data-i="pass">Пароль</label><div class="passwrap"><input id="lPass" type="password" autocomplete="current-password" required><button type="button" class="eye" id="eyeBtn" aria-label="Показать пароль">👁</button></div></div>
+    <label class="remember"><input type="checkbox" id="lRem" checked> <span data-i="remember">Запомнить меня на этом устройстве</span></label>
     <div class="err" id="lErr"></div>
     <div class="acts"><button type="button" class="btn" data-close data-i="cancel">Отмена</button><button class="btn pri" id="lBtn" data-i="enter">Войти</button></div>
   </form>
@@ -531,7 +534,7 @@ const L = {
     navSec:'Разделы', navTools:'Инструменты', moreF:'⚙ Ещё', tipNone:'Требует проверки (причина не указана)',
     search:'Поиск по номеру студ. билета', searchAdm:'Поиск по ФИО или номеру билета', noNum:'Без № билета', enr:n=>'№ '+n, sortNum:'↕ По номеру', segAll:'Все', segP:'🟢 Оплатили', segU:'🔴 Не оплатили', check:'⚠ Проверить',
     sortGrp:'↕ По группам', sortName:'↕ По ФИО (А–Я)', add:'+ Студент', reset:'Сбросить фильтры', loginTitle:'Вход для администрации',
-    login:'Логин (старосты — свой Gmail)', pass:'Пароль', cancel:'Отмена', enter:'Войти', in:'Вход', out:'Выйти', allSem:'Все семестры', allGrp:'Все группы',
+    login:'Логин (старосты — свой Gmail)', remember:'Запомнить меня на этом устройстве (30 дней)', pass:'Пароль', cancel:'Отмена', enter:'Войти', in:'Вход', out:'Выйти', allSem:'Все семестры', allGrp:'Все группы',
     semOpt:(c,s)=>`${c} курс · ${s} сем.`, course:c=>`${c} курс`, grpPaid:(p,n)=>`${p}/${n} оплатили`,
     shown:(a,b)=>`Показано: ${a} из ${b}`, none:'Никого не найдено', more:n=>`Показать ещё (${n})`, paid:'Оплатил', unpaid:'Не оплатил',
     markPaid:'✓ Оплатил', unmark:'Снять оплату', loadErr:'Не удалось загрузить данные.', retry:'Повторить', undo:'Отменить',
@@ -561,7 +564,7 @@ const L = {
     navSec:'Sections', navTools:'Tools', moreF:'⚙ More', tipNone:'Needs checking (no reason given)',
     search:'Search by enrollment number', searchAdm:'Search by name or enrollment number', noNum:'No enrollment №', enr:n=>'№ '+n, sortNum:'↕ By number', segAll:'All', segP:'🟢 Paid', segU:'🔴 Not paid', check:'⚠ To check',
     sortGrp:'↕ By group', sortName:'↕ By name (A–Z)', add:'+ Student', reset:'Reset filters', loginTitle:'Staff login',
-    login:'Login (group leaders — your Gmail)', pass:'Password', cancel:'Cancel', enter:'Sign in', in:'Login', out:'Logout', allSem:'All semesters', allGrp:'All groups',
+    login:'Login (group leaders — your Gmail)', remember:'Remember me on this device (30 days)', pass:'Password', cancel:'Cancel', enter:'Sign in', in:'Login', out:'Logout', allSem:'All semesters', allGrp:'All groups',
     semOpt:(c,s)=>`Year ${c} · Sem ${s}`, course:c=>`Year ${c}`, grpPaid:(p,n)=>`${p}/${n} paid`,
     shown:(a,b)=>`Showing ${a} of ${b}`, none:'No students found', more:n=>`Show more (${n})`, paid:'Paid', unpaid:'Not paid',
     markPaid:'✓ Paid', unmark:'Unmark', loadErr:'Could not load data.', retry:'Retry', undo:'Undo',
@@ -629,7 +632,15 @@ const isEditor = () => !!token && role === 'editor';  // деканат: мож�
 const isLeader = () => !!token && role === 'leader';  // староста: только страховка своей группы
 const canEdit = () => isEditor() || isLeader();
 
-function store(op, k, v) { try { if (op === 'get') return sessionStorage.getItem(k); if (op === 'set') sessionStorage.setItem(k, v); else sessionStorage.removeItem(k); } catch (e) { return null; } }
+// вход: «Запомнить меня» → localStorage (живёт после закрытия браузера), иначе sessionStorage (только эта вкладка)
+function remembered() { try { return localStorage.getItem('rem') === '1'; } catch (e) { return false; } }
+function store(op, k, v) {
+  try {
+    if (op === 'get') return sessionStorage.getItem(k) || (remembered() ? localStorage.getItem('a_' + k) : null);
+    if (op === 'set') { sessionStorage.setItem(k, v); if (remembered()) localStorage.setItem('a_' + k, v); }
+    else { sessionStorage.removeItem(k); localStorage.removeItem('a_' + k); }
+  } catch (e) { return null; }
+}
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const norm = s => String(s || '').toLowerCase().replace(/ё/g, 'е').replace(/\s+/g, ' ').trim();
 const TR = {а:'a',б:'b',в:'v',г:'g',д:'d',е:'e',ё:'e',ж:'j',з:'z',и:'i',й:'y',к:'k',л:'l',м:'m',н:'n',о:'o',п:'p',р:'r',с:'s',т:'t',у:'u',ф:'f',х:'h',ц:'ts',ч:'ch',ш:'sh',щ:'sh',ъ:'',ы:'y',ь:'',э:'e',ю:'yu',я:'ya'};
@@ -950,11 +961,19 @@ $('#grpForm').addEventListener('submit', async e => {
 });
 
 /* ===== ВХОД / ВЫХОД ===== */
-$('#authBtn').onclick = () => isAdmin() ? logout() : (show('#mLogin'), $('#lErr').textContent = '', setTimeout(() => $('#lLogin').focus(), 50));
+$('#authBtn').onclick = () => {
+  if (isAdmin()) return logout();
+  show('#mLogin'); $('#lErr').textContent = '';
+  let last = ''; try { last = localStorage.getItem('lastLogin') || ''; } catch (e) {}
+  if (last && !$('#lLogin').value) $('#lLogin').value = last;         // логин подставляем — остаётся пароль
+  setTimeout(() => (last ? $('#lPass') : $('#lLogin')).focus(), 50);
+};
 $('#loginForm').addEventListener('submit', async e => {
   e.preventDefault(); $('#lBtn').disabled = true; $('#lErr').textContent = '';
   try {
-    const j = await api('login', { login: $('#lLogin').value, password: $('#lPass').value });
+    const rem = $('#lRem').checked;
+    const j = await api('login', { login: $('#lLogin').value, password: $('#lPass').value, remember: rem });
+    try { if (rem) localStorage.setItem('rem', '1'); else localStorage.removeItem('rem'); localStorage.setItem('lastLogin', $('#lLogin').value.trim()); } catch (e) {}
     token = j.token; user = j.name; role = j.role || 'editor'; siteAdmin = !!j.admin; store('set', 'tok', token); store('set', 'usr', user); store('set', 'role', role); store('set', 'adm', siteAdmin ? '1' : '0');
     $('#lPass').value = ''; $('#lPass').type = 'password'; $('#eyeBtn').textContent = '👁'; hide('#mLogin'); load();
   } catch (err) { $('#lErr').textContent = err.message; }
@@ -962,7 +981,7 @@ $('#loginForm').addEventListener('submit', async e => {
 });
 function logout(expired) {
   token = null; user = ''; role = 'editor'; rep = null; st.tab = 'pay'; store('del', 'tok'); store('del', 'usr'); store('del', 'role'); store('del', 'adm'); siteAdmin = false; st.check = false; st.noNum = false;
-  if (expired) toast(t('expired'));
+  if (expired) { toast(t('expired')); setTimeout(() => $('#authBtn').onclick(), 400); }   // сразу предложить войти снова
   load();
 }
 

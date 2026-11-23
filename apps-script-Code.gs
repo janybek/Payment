@@ -6,7 +6,8 @@
 const SHEET_STUDENTS = 'Студенты';
 const SHEET_LOG = 'Журнал';
 const TZ = 'Asia/Bishkek';
-const TOKEN_HOURS = 12;
+const TOKEN_HOURS = 12;            // обычный вход
+const REMEMBER_DAYS = 30;          // «Запомнить меня на этом устройстве»
 const STATUSES = ['Оплатил', 'Не оплатил'];
 const ENR = 'Номер студ. билета';
 const PAID_DATE = 'Дата оплаты';
@@ -40,7 +41,7 @@ function handle_(p) {
   try {
     switch (p.action) {
       case 'list':      track_('public', '', 'Открыл сайт', '', p.vid); return { ok: true, students: listPublic_(), deadline: deadline_() };
-      case 'login':     return login_(p.login, p.password);
+      case 'login':     return login_(p.login, p.password, !!p.remember);
       case 'adminList': { const u = auth_(p.token); track_(u.role, u.n, 'Открыл сайт', '', p.vid); const o = adminList_(u); o.admin = !!u.admin; return o; }
       case 'ping':      { const u = p.token ? auth_(p.token) : { role: 'public', n: '' }; track_(u.role, u.n, 'Вкладка', String(p.tab || '').slice(0, 20), p.vid); return { ok: true }; }
       case 'visits':    return visits_(auth_(p.token));
@@ -551,7 +552,7 @@ function hash_(salt, pass) {
   return h;
 }
 
-function login_(login, password) {
+function login_(login, password, remember) {
   login = String(login || '').trim().toLowerCase();
   const cache = CacheService.getScriptCache();
   const failKey = 'fail_' + login;
@@ -569,7 +570,7 @@ function login_(login, password) {
   const role = isLeader ? 'leader' : (u.role || 'editor');
   const name = isLeader ? leaderName_(u) : u.name;
   const payload = Utilities.base64EncodeWebSafe(Utilities.newBlob(JSON.stringify(
-    { u: key, n: name, v: u.ver || 1, e: Date.now() + TOKEN_HOURS * 3600e3 })).getBytes());
+    { u: key, n: name, v: u.ver || 1, e: Date.now() + (remember ? REMEMBER_DAYS * 24 : TOKEN_HOURS) * 3600e3 })).getBytes());
   track_(role, name, 'Вход', '', '');
   return { ok: true, token: payload + '.' + sign_(payload), name: name, role: role, admin: !isLeader && !!u.admin };
 }
