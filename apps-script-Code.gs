@@ -15,10 +15,11 @@ const INS_UNTIL = 'Страховка до';
 const INS_PAID = 'Страховка оплата';
 const LEADER_COL = 'Староста';
 const LEADER_LOGIN = 'Логин старосты';
+const PHONE = 'Телефон';            // мобильный студента: деканат и старосты (учителям не показывается)
 // Семестры, скрытые на публичной странице (админка видит всё)
 const HIDDEN_SEMESTERS = ['1'];
 const EDIT_FIELDS = [INS_UNTIL, INS_PAID, ENR, 'ФИО', 'ФИО (лат.)', 'Группа', 'Курс', 'Семестр', 'Статус оплаты',
-  'ИНН / паспорт', 'Email', 'Дата рождения', 'Пол', 'Проверить', 'Примечание'];
+  'ИНН / паспорт', 'Email', PHONE, 'Дата рождения', 'Пол', 'Проверить', 'Примечание'];
 
 /* ================= ВХОД В API ================= */
 
@@ -73,9 +74,9 @@ function handle_(p) {
 const VIEWER_FIELDS = ['ID', ENR, 'ФИО', 'ФИО (лат.)', 'Группа', 'Курс', 'Семестр', 'Статус оплаты', PAID_DATE, LEADER_COL];
 
 // Что видит староста: только свою группу, без оплаты контракта
-const LEADER_FIELDS = ['ID', ENR, 'ФИО', 'ФИО (лат.)', 'Группа', 'Курс', 'Семестр', 'Email', 'Пол', 'Дата рождения', INS_UNTIL, INS_PAID, LEADER_COL];
+const LEADER_FIELDS = ['ID', ENR, 'ФИО', 'ФИО (лат.)', 'Группа', 'Курс', 'Семестр', 'Email', PHONE, 'Пол', 'Дата рождения', INS_UNTIL, INS_PAID, LEADER_COL];
 // Что староста может менять (личные данные + страховка: дата и оплата)
-const LEADER_EDIT = ['ФИО', 'ФИО (лат.)', 'Email', ENR, 'Пол', 'Дата рождения', INS_UNTIL, INS_PAID];
+const LEADER_EDIT = ['ФИО', 'ФИО (лат.)', 'Email', PHONE, ENR, 'Пол', 'Дата рождения', INS_UNTIL, INS_PAID];
 
 function adminList_(user) {
   const rows = readAll_().rows;
@@ -339,6 +340,7 @@ function clean_(st) {
   if (o[INS_UNTIL] && o[INS_UNTIL].toLowerCase() !== 'нет' && !validDate_(o[INS_UNTIL]))
     throw new Error('«Страховка до» — дата дд.мм.гггг или «нет»');
   if (o[INS_PAID] && STATUSES.indexOf(o[INS_PAID]) < 0) throw new Error('Неверный статус страховки');
+  if (PHONE in o) o[PHONE] = cleanPhone_(o[PHONE]);
   ['Курс', 'Семестр'].forEach(f => {
     if (o[f]) { if (!/^\d{1,2}$/.test(o[f])) throw new Error('«' + f + '» — только число'); o[f] = Number(o[f]); }
   });
@@ -360,11 +362,12 @@ function save_(user, st) {
       const changes = [];
       Object.keys(data).forEach(f => {
         if (!(f in db.col)) {
-          if ((f === INS_UNTIL || f === INS_PAID) && data[f]) ensureCol_(db, f); else return;
+          if ((f === INS_UNTIL || f === INS_PAID || f === PHONE) && data[f]) ensureCol_(db, f); else return;
         }
+        if (s[f] == null) s[f] = '';                                // колонка только что добавлена
         if (String(s[f]) === String(data[f])) return;
         const cell = db.sh.getRange(s._row, db.col[f] + 1);
-        if (f === 'Группа') cell.setNumberFormat('@');            // иначе Таблицы превращают «05-1-25» в дату
+        if (f === 'Группа' || f === PHONE) cell.setNumberFormat('@');   // иначе Таблицы превращают «05-1-25» в дату, «+996…» в число
         cell.setValue(f === INS_UNTIL && data[f] ? "'" + data[f] : data[f]);
         changes.push([f, s[f], data[f]]);
       });
@@ -390,6 +393,7 @@ function save_(user, st) {
     if (bin && bin.getLastRow() > 1) bin.getRange(2, 3, bin.getLastRow() - 1, 1).getValues()
       .forEach(r => { const m = /^S(\d+)$/.exec(r[0]); if (m) max = Math.max(max, +m[1]); });
     const id = 'S' + String(max + 1).padStart(4, '0');
+    if (data[PHONE]) ensureCol_(db, PHONE);
     const row = db.headers.map(h => {
       if (h === 'ID') return id;
       if (h === 'Изменено') return now_();
@@ -400,6 +404,7 @@ function save_(user, st) {
     });
     db.sh.appendRow(row);
     db.sh.getRange(db.sh.getLastRow(), db.col['Группа'] + 1).setNumberFormat('@').setValue(data['Группа']);
+    if (data[PHONE]) db.sh.getRange(db.sh.getLastRow(), db.col[PHONE] + 1).setNumberFormat('@').setValue(data[PHONE]);
     log_(user, 'Добавлен', id, data['ФИО'], '', data['Группа'] + ', ' + data['Статус оплаты']);
     return { ok: true, id: id };
   });
@@ -677,6 +682,10 @@ function readRepeat_() {
 
 function repeatList_(user) {
   const rows = readRepeat_().rows.map(r => { delete r._row; return r; });
+  if (user.role === 'editor' || user.role === 'leader') {   // телефон берём из карточки студента (если он есть в базе)
+    const ph = {}; readAll_().rows.forEach(s => { if (s[PHONE]) ph[s['ID']] = s[PHONE]; });
+    rows.forEach(r => { if (r['ID студента'] && ph[r['ID студента']]) r[PHONE] = ph[r['ID студента']]; });
+  }
   if (user.role === 'editor') return { ok: true, rows: rows };
   if (user.role === 'viewer') return { ok: true, rows: rows.map(r => { delete r['Телефон']; return r; }) };   // телефоны учителям не показываем
   if (user.role === 'leader') { const mine = leaderRepeat_(user); return { ok: true, rows: rows.filter(mine) }; }
@@ -701,20 +710,27 @@ function cleanPhone_(v) {
 function repeatPhone_(user, rid, phone) {
   phone = cleanPhone_(phone);
   if (user.role !== 'editor' && user.role !== 'leader') throw new Error('Только просмотр — изменения недоступны');
+  const r0 = readRepeat_().rows.find(x => x.RID === rid);
+  if (!r0) throw new Error('Запись не найдена');
+  if (user.role === 'leader' && !leaderRepeat_(user)(r0)) throw new Error('Можно менять только студентов своей группы');
+  // студент есть в базе → телефон пишется в его карточку (виден везде: оплата, страховка, повторный курс)
+  if (r0['ID студента'] && readAll_().rows.some(s => s['ID'] === r0['ID студента'])) {
+    save_(user, { ID: r0['ID студента'], [PHONE]: phone });
+    return { ok: true, count: 1, phone: phone, card: true };
+  }
+  // нет в базе (например, студенты из Бишкека) → телефон хранится в записях повторного курса
   return withLock_(() => {
     const db = readRepeat_();
     const r = db.rows.find(x => x.RID === rid);
     if (!r) throw new Error('Запись не найдена');
-    if (user.role === 'leader' && !leaderRepeat_(user)(r)) throw new Error('Можно менять только студентов своей группы');
-    const c = repCol_(db, 'Телефон');
-    const same = x => r['ID студента'] ? x['ID студента'] === r['ID студента']
-                                       : x['ФИО (по приказу)'] === r['ФИО (по приказу)'] && x['Группа'] === r['Группа'];
+    const c = repCol_(db, PHONE);
+    const same = x => !x['ID студента'] && x['ФИО (по приказу)'] === r['ФИО (по приказу)'] && x['Группа'] === r['Группа'];
     let n = 0;
     db.rows.filter(same).forEach(x => {
-      if ((x['Телефон'] || '') === phone) return;
+      if ((x[PHONE] || '') === phone) return;
       db.sh.getRange(x._row, c + 1).setNumberFormat('@').setValue(phone); n++;
     });
-    if (n) log_(user, 'Повторный курс: телефон', rid, r['ФИО (по приказу)'], r['Телефон'] || '', phone || '— удалён');
+    if (n) log_(user, 'Повторный курс: телефон', rid, r['ФИО (по приказу)'], r[PHONE] || '', phone || '— удалён');
     return { ok: true, count: n, phone: phone };
   });
 }

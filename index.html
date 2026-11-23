@@ -382,8 +382,9 @@ fieldset.leadf legend{font-size:13px;font-weight:700;padding:0 6px;color:var(--w
       <div class="fld"><label>ИНН / паспорт</label><input name="ИНН / паспорт"></div>
       <div class="fld"><label>Дата рождения</label><input name="Дата рождения" placeholder="дд.мм.гггг"></div>
     </div>
+    <div class="fld"><label>Email</label><input name="Email" type="email"></div>
     <div class="two">
-      <div class="fld"><label>Email</label><input name="Email" type="email"></div>
+      <div class="fld"><label>📞 Мобильный телефон</label><input name="Телефон" type="tel" inputmode="tel" placeholder="+996 555 123 456"></div>
       <div class="fld"><label>Пол</label><select name="Пол"><option value=""></option><option>муж</option><option>жен</option></select></div>
     </div>
     <div class="fld"><label><input type="checkbox" name="Проверить" style="width:auto;margin-right:6px">⚠ Требует проверки</label></div>
@@ -554,8 +555,8 @@ const L = {
     tabPay:'💳 Оплата контракта', tabIns:'🛡 Медстраховка', segSoon:'⚠ Истекает', segNone:'❌ Нет',
     insOk:d=>`🛡 до ${d}`, insSoon:(d,n)=>`⚠ страховка истекает через ${n} дн. (${d})`, insNone:'❌ нет страховки', insLate:d=>`❌ страховка истекла ${d}`,
     insStat:'Медстраховка', insRec:'В списке', insValid:'Действует', insSoonL:'Истекает ≤30 дн.', insNoneL:'Нет / истекла',
-    xHeadIns:['№ студ. билета','ФИО','ФИО (лат.)','Группа','Курс','Семестр','Страховка до','Оплата страховки','Состояние'], xFileIns:'Страховка',
-    xHead:['№ студ. билета','ФИО','ФИО (лат.)','Группа','Курс','Семестр','Статус','Дата оплаты'], xFile:'Оплата' },
+    xHeadIns:['№ студ. билета','ФИО','ФИО (лат.)','Группа','Курс','Семестр','Страховка до','Оплата страховки','Состояние','Телефон'], xFileIns:'Страховка',
+    xHead:['№ студ. билета','ФИО','ФИО (лат.)','Группа','Курс','Семестр','Статус','Дата оплаты','Телефон'], xFile:'Оплата' },
   en: { title:'Dean\'s Office Online', sub:'Campus students · 2026–2027', all:'Total', paidPl:'Paid', unpaidPl:'Not paid',
     navSec:'Sections', navTools:'Tools', moreF:'⚙ More', tipNone:'Needs checking (no reason given)',
     search:'Search by enrollment number', searchAdm:'Search by name or enrollment number', noNum:'No enrollment №', enr:n=>'№ '+n, sortNum:'↕ By number', segAll:'All', segP:'🟢 Paid', segU:'🔴 Not paid', check:'⚠ To check',
@@ -584,8 +585,8 @@ const L = {
     tabPay:'💳 Contract payment', tabIns:'🛡 Medical insurance', segSoon:'⚠ Expiring', segNone:'❌ None',
     insOk:d=>`🛡 until ${d}`, insSoon:(d,n)=>`⚠ insurance expires in ${n} days (${d})`, insNone:'❌ no insurance', insLate:d=>`❌ insurance expired ${d}`,
     insStat:'Medical insurance', insRec:'Listed', insValid:'Valid', insSoonL:'Expires ≤30 days', insNoneL:'None / expired',
-    xHeadIns:['Enrollment №','Name (RU)','Name (EN)','Group','Year','Semester','Insurance until','Insurance paid','State'], xFileIns:'Insurance',
-    xHead:['Enrollment №','Name (RU)','Name (EN)','Group','Year','Semester','Status','Payment date'], xFile:'Payments' }
+    xHeadIns:['Enrollment №','Name (RU)','Name (EN)','Group','Year','Semester','Insurance until','Insurance paid','State','Phone'], xFileIns:'Insurance',
+    xHead:['Enrollment №','Name (RU)','Name (EN)','Group','Year','Semester','Status','Payment date','Phone'], xFile:'Payments' }
 };
 let lang = (() => { try { return localStorage.getItem('lang') || 'en'; } catch (e) { return 'en'; } })();
 const t = k => L[lang][k];
@@ -831,7 +832,7 @@ function openEdit(s) {
   loadHistory(s);
   show('#mEdit'); setTimeout(() => f.elements['ФИО'].focus(), 50);
 }
-const LEADER_EDIT = ['ФИО', 'ФИО (лат.)', 'Email', 'Номер студ. билета', 'Пол', 'Дата рождения', 'Страховка до', 'Страховка оплата'];
+const LEADER_EDIT = ['ФИО', 'ФИО (лат.)', 'Email', 'Телефон', 'Номер студ. билета', 'Пол', 'Дата рождения', 'Страховка до', 'Страховка оплата'];
 const canMark = () => isEditor() || (isLeader() && INS());   // староста — только оплату страховки
 async function loadHistory(s) {
   const h = $('#eHist'); h.hidden = true; h.innerHTML = '';
@@ -1090,7 +1091,8 @@ function renderRep() {
       if (x['Подгруппа'] && x['Подгруппа'] !== lastSub) { lastSub = x['Подгруппа']; h += `<div class="rp-sub">${esc(t('rpSubG')(x['Подгруппа']))}</div>`; }
       const s = stuById[x['ID студента']];
       const sub = [x['Группа'], s && s.enr ? t('enr')(s.enr) : '', s && s.lat ? s.lat : ''].filter(Boolean).join(' · ');
-      const ph = x['Телефон'] ? `<a class="tel" href="tel:${esc(x['Телефон'].replace(/[^\d+]/g, ''))}">📞 ${esc(x['Телефон'])}</a>` : '';
+      const phone = repPhone(x);
+      const ph = phone ? `<a class="tel" href="tel:${esc(phone.replace(/[^\d+]/g, ''))}">📞 ${esc(phone)}</a>` : '';
       const res = x['Результат'] || '', rc = res === 'Прошёл' ? 'ok' : res === 'Не прошёл' ? 'no' : '';
       const dot = rc === 'ok' ? 'var(--ok)' : rc === 'no' ? 'var(--bad)' : 'var(--brand-2)';
       const resUi = isEditor()
@@ -1098,7 +1100,7 @@ function renderRep() {
         : rc ? `<span class="rbadge ${rc}">${t(rc === 'ok' ? 'rpOkB' : 'rpNoB')}</span>` : '';
       h += `<div class="row" data-rid="${esc(x.RID)}"><span class="dot" style="background:${dot}"></span>
         <div class="nm"><b${s && s.leader ? ' class="lead"' : ''}>${esc(x['ФИО (по приказу)'])}${!x['ID студента'] ? `<span class="tag-nb">${t('rpNb')}</span>` : ''}</b><small>${esc(sub)}</small>${ph ? `<small>${ph}</small>` : ''}</div>
-        ${resUi}${isEditor() ? '<button class="edit" data-ract="edit" title="Редактировать">✎</button>' : isLeader() ? `<button class="edit" data-ract="phone" title="${t('rpPhone')}">${x['Телефон'] ? '📞' : '📞+'}</button>` : ''}</div>`;
+        ${resUi}${isEditor() ? '<button class="edit" data-ract="edit" title="Редактировать">✎</button>' : isLeader() ? `<button class="edit" data-ract="phone" title="${t('rpPhone')}">${phone ? '📞' : '📞+'}</button>` : ''}</div>`;
     });
   });
   $('#rList').innerHTML = h;
@@ -1125,12 +1127,13 @@ $('#rList').addEventListener('click', e => {
 });
 /* Телефон студента на пересдаче (староста — своей группы) */
 let phRec = null;
+const repPhone = x => { const s = stuById[x['ID студента']]; return (s && s.raw && s.raw['Телефон']) || x['Телефон'] || ''; };
 function openPhone(x) {
   phRec = x;
   const subj = rep.filter(r => samePerson(r, x)).map(r => r['Предмет']);
   $('#phTitle').textContent = x['ФИО (по приказу)'];
   $('#phSub').textContent = x['Группа'] + ' · ' + [...new Set(subj)].join(', ');
-  $('#phInput').value = x['Телефон'] || ''; $('#phErr').textContent = ''; $('#phBtn').disabled = false;
+  $('#phInput').value = repPhone(x); $('#phErr').textContent = ''; $('#phBtn').disabled = false;
   show('#mPhone'); setTimeout(() => $('#phInput').focus(), 50);
 }
 const samePerson = (a, b) => b['ID студента'] ? a['ID студента'] === b['ID студента'] : a['ФИО (по приказу)'] === b['ФИО (по приказу)'] && a['Группа'] === b['Группа'];
@@ -1140,6 +1143,7 @@ $('#phForm').addEventListener('submit', async e => {
   try {
     const j = await api('repeatPhone', { rid: phRec.RID, phone: $('#phInput').value });
     rep.filter(r => samePerson(r, phRec)).forEach(r => r['Телефон'] = j.phone);
+    const sc = stuById[phRec['ID студента']]; if (sc && sc.raw) sc.raw['Телефон'] = j.phone;
     hide('#mPhone'); toast(t('saved')); renderRep();
   } catch (err) { $('#phErr').textContent = err.message; $('#phBtn').disabled = false; }
 });
@@ -1156,6 +1160,7 @@ function openRep(x) {
   $('#rpTitle').textContent = x ? t('rpEdit') + ' · ' + x.RID : t('rpNew');
   const src = x || { 'Предмет': rf.s || '', 'Преподаватель': rf.t || '', 'Группа': rf.g || '', 'Семестр': rf.m || '', 'Приказ': (rep[0] || {})['Приказ'] || '' };
   [...f.elements].forEach(el => { if (el.name) el.value = src[el.name] ?? ''; });
+  f.elements['Телефон'].value = x ? repPhone(x) : ''; f.dataset.ph = f.elements['Телефон'].value;
   const d = $('#rpDel'); d.hidden = !x; d.classList.remove('arm'); d.textContent = t('del');
   show('#mRep');
 }
@@ -1164,8 +1169,16 @@ $('#repForm').addEventListener('submit', async e => {
   const f = e.target, rec = {};
   [...f.elements].forEach(el => { if (el.name) rec[el.name] = el.value.trim(); });
   if (f.dataset.rid) rec.RID = f.dataset.rid;
+  const phone = rec['Телефон']; delete rec['Телефон'];        // телефон — в карточку студента (repeatPhone)
   $('#rpBtn').disabled = true; $('#rpErr').textContent = '';
-  try { await api('repeatSave', { rec }); hide('#mRep'); toast(t('saved')); await loadRep(true); }
+  try {
+    const j = await api('repeatSave', { rec });
+    if (phone !== (f.dataset.ph || '')) {
+      const pj = await api('repeatPhone', { rid: j.rid, phone });
+      const sc = stuById[rec['ID студента']]; if (sc && sc.raw) sc.raw['Телефон'] = pj.phone;
+    }
+    hide('#mRep'); toast(t('saved')); await loadRep(true);
+  }
   catch (err) { $('#rpErr').textContent = err.message; }
   $('#rpBtn').disabled = false;
 });
@@ -1272,15 +1285,15 @@ $('#xlsBtn').onclick = async () => {
   const head = ins ? t('xHeadIns') : t('xHead');
   const stName = { ok: t('insValid'), soon: t('insSoonL'), none: t('insNoneL') };
   const data = sortedRows().map(s => ins
-    ? [s.enr, s.name, s.lat, s.grp, s.course, s.sem, s.insUntil || '', s.raw ? (s.raw['Страховка оплата'] || '') : '', stName[insState(s)]]
-    : [s.enr, s.name, s.lat, s.grp, s.course, s.sem, s.paid ? t('paid') : t('unpaid'), s.pdate || '']);
+    ? [s.enr, s.name, s.lat, s.grp, s.course, s.sem, s.insUntil || '', s.raw ? (s.raw['Страховка оплата'] || '') : '', stName[insState(s)], s.raw ? (s.raw['Телефон'] || '') : '']
+    : [s.enr, s.name, s.lat, s.grp, s.course, s.sem, s.paid ? t('paid') : t('unpaid'), s.pdate || '', s.raw ? (s.raw['Телефон'] || '') : '']);
   const parts = [ins ? t('xFileIns') : t('xFile'), st.sem ? 'sem' + st.sem : '', st.grp, st.status === 'p' ? 'paid' : st.status === 'u' ? 'unpaid' : '', todayStr()].filter(Boolean);
   const name = parts.join('_');
   try {
     const X = await loadXLSX();
     const ws = X.utils.aoa_to_sheet([head, ...data]);
-    ws['!cols'] = [12, 34, 34, 10, 6, 9, 14, 14, 16].map(w => ({ wch: w }));
-    ws['!autofilter'] = { ref: 'A1:' + (ins ? 'I' : 'H') + (data.length + 1) };
+    ws['!cols'] = (ins ? [12, 34, 34, 10, 6, 9, 14, 14, 16, 18] : [12, 34, 34, 10, 6, 9, 14, 14, 18]).map(w => ({ wch: w }));
+    ws['!autofilter'] = { ref: 'A1:' + (ins ? 'J' : 'I') + (data.length + 1) };
     const wb = X.utils.book_new(); X.utils.book_append_sheet(wb, ws, 'Students');
     X.writeFile(wb, name + '.xlsx');
   } catch (e) {                                  // запасной вариант — CSV для Excel
