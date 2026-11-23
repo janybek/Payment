@@ -120,6 +120,7 @@ select{padding:9px 10px;border:1px solid var(--line);border-radius:10px;backgrou
 .res button{border:1px solid var(--line);background:var(--card);border-radius:10px;padding:6px 9px;cursor:pointer;font:inherit;font-size:13px;color:var(--muted);white-space:nowrap}
 .res button.on.ok{background:var(--ok);border-color:var(--ok);color:#fff}
 .res button.on.no{background:var(--bad);border-color:var(--bad);color:#fff}
+.nm a.tel{color:var(--blue-2,#2F3950);text-decoration:none;font-weight:600}
 .rbadge{font-size:12px;font-weight:600;padding:4px 8px;border-radius:8px;white-space:nowrap;flex:none}
 .rbadge.ok{background:var(--ok-bg);color:var(--ok)} .rbadge.no{background:var(--bad-bg);color:var(--bad)}
 .edit{border:1px solid var(--line);background:var(--card);border-radius:10px;padding:7px 9px;cursor:pointer}
@@ -426,6 +427,7 @@ fieldset.leadf legend{font-size:13px;font-weight:700;padding:0 6px;color:var(--w
       <div class="fld"><label data-i="rpResL">Результат</label><select name="Результат"><option value="">—</option><option value="Прошёл">✅ Прошёл</option><option value="Не прошёл">❌ Не прошёл</option></select></div>
       <div class="fld"><label>Примечание</label><input name="Примечание"></div>
     </div>
+    <div class="fld"><label data-i="rpPhone">Телефон студента</label><input name="Телефон" type="tel" inputmode="tel" placeholder="+996 555 123 456"></div>
     <datalist id="rpSubjList"></datalist><datalist id="rpTeachList"></datalist>
     <div class="err" id="rpErr"></div>
     <div class="acts"><button type="button" class="btn del" id="rpDel" hidden>🗑 Удалить</button><span style="flex:1"></span><button type="button" class="btn" data-close data-i="cancel">Отмена</button><button class="btn pri" id="rpBtn" data-i="iSave">Сохранить</button></div>
@@ -456,6 +458,17 @@ fieldset.leadf legend{font-size:13px;font-weight:700;padding:0 6px;color:var(--w
     <div class="hint" id="gWarn" style="color:var(--warn,#b7791f);font-size:13px;min-height:1em"></div>
     <div class="err" id="gErr"></div>
     <div class="acts"><button type="button" class="btn" data-close data-i="cancel">Отмена</button><button class="btn pri" id="gBtn" data-i="gSave">Сохранить</button></div>
+  </form>
+</div>
+
+<!-- Телефон студента на пересдаче (староста / деканат) -->
+<div class="modal" id="mPhone">
+  <form class="box" id="phForm">
+    <h2 id="phTitle"></h2>
+    <p id="phSub" style="margin:-6px 0 12px;color:var(--muted)"></p>
+    <div class="fld"><label data-i="rpPhone">Телефон студента</label><input id="phInput" type="tel" inputmode="tel" autocomplete="off" placeholder="+996 555 123 456"></div>
+    <div class="err" id="phErr"></div>
+    <div class="acts"><button type="button" class="btn" data-close data-i="cancel">Отмена</button><button class="btn pri" id="phBtn" data-i="iSave">Сохранить</button></div>
   </form>
 </div>
 
@@ -518,10 +531,10 @@ const L = {
     sxPayHead:by=>[by === 'sem' ? 'Семестр' : 'Группа', ...(by === 'grp' ? ['Семестр'] : []), 'Всего', 'Оплатили', 'Не оплатили', '% оплаты'],
     iUntil:'Страховка до (дд.мм.гггг)', iPaid:'Оплата страховки', iNoneL:'Страховки нет', iSave:'Сохранить',
     leaderB:'староста', tabRep:'🔁 Повторный курс', rpRecs:'Записей', rpStud:'Студентов', rpSubj:'Предметов',
-    rpSearch:'Поиск: ФИО, предмет, группа', rpAdd:'+ Запись', rpAllT:'Все преподаватели', rpAllS:'Все предметы', rpAllSem:'Все семестры', rpAllG:'Все группы', rpAllO:'Все приказы', rpResAll:'Все результаты', rpResOk:'✅ Прошли', rpResNo:'❌ Не прошли', rpResNone:'⏳ Без результата', rpOk:'✓ Прошёл', rpNo:'✗ Не прошёл', rpOkB:'✅ Прошёл', rpNoB:'❌ Не прошёл', rpResL:'Результат', rpResSum:(o,n)=>` · ✅ ${o} · ❌ ${n}`,
+    rpSearch:'Поиск: ФИО, предмет, группа', rpAdd:'+ Запись', rpAllT:'Все преподаватели', rpAllS:'Все предметы', rpAllSem:'Все семестры', rpAllG:'Все группы', rpAllO:'Все приказы', rpResAll:'Все результаты', rpResOk:'✅ Прошли', rpResNo:'❌ Не прошли', rpResNone:'⏳ Без результата', rpOk:'✓ Прошёл', rpNo:'✗ Не прошёл', rpOkB:'✅ Прошёл', rpNoB:'❌ Не прошёл', rpResL:'Результат', rpPhone:'Телефон студента', rpResSum:(o,n)=>` · ✅ ${o} · ❌ ${n}`,
     rpFor:n=>`за ${n} сем.`, rpH:n=>`${n} ч.`, rpN:n=>`${n} студ.`, rpSubG:n=>`${n} подгруппа`, rpNb:'нет в базе', rpSemO:n=>`${n} семестр`,
     rpCount:(a,b)=>`Показано записей: ${a} из ${b}`, rpNew:'Новая запись', rpEdit:'Запись', rpDelSure:'Точно удалить?',
-    rpXHead:['Предмет','За семестр','Форма контроля','Преподаватель','Часы','Подгруппа','ФИО (по приказу)','Группа','Семестр','№ студ. билета','Приказ','Результат'], rpXFile:'Повторный_курс',
+    rpXHead:['Предмет','За семестр','Форма контроля','Преподаватель','Часы','Подгруппа','ФИО (по приказу)','Группа','Семестр','№ студ. билета','Приказ','Результат','Телефон'], rpXFile:'Повторный_курс',
     tabPay:'💳 Оплата контракта', tabIns:'🛡 Медстраховка', segSoon:'⚠ Истекает', segNone:'❌ Нет',
     insOk:d=>`🛡 до ${d}`, insSoon:(d,n)=>`⚠ страховка истекает через ${n} дн. (${d})`, insNone:'❌ нет страховки', insLate:d=>`❌ страховка истекла ${d}`,
     insStat:'Медстраховка', insRec:'В списке', insValid:'Действует', insSoonL:'Истекает ≤30 дн.', insNoneL:'Нет / истекла',
@@ -548,10 +561,10 @@ const L = {
     sxPayHead:by=>[by === 'sem' ? 'Semester' : 'Group', ...(by === 'grp' ? ['Semester'] : []), 'Total', 'Paid', 'Not paid', '% paid'],
     iUntil:'Insurance valid until (dd.mm.yyyy)', iPaid:'Insurance payment', iNoneL:'No insurance', iSave:'Save',
     leaderB:'group leader', tabRep:'🔁 Repeat courses', rpRecs:'Entries', rpStud:'Students', rpSubj:'Subjects',
-    rpSearch:'Search: name, subject, group', rpAdd:'+ Entry', rpAllT:'All teachers', rpAllS:'All subjects', rpAllSem:'All semesters', rpAllG:'All groups', rpAllO:'All orders', rpResAll:'All results', rpResOk:'✅ Passed', rpResNo:'❌ Failed', rpResNone:'⏳ No result', rpOk:'✓ Passed', rpNo:'✗ Failed', rpOkB:'✅ Passed', rpNoB:'❌ Failed', rpResL:'Result', rpResSum:(o,n)=>` · ✅ ${o} · ❌ ${n}`,
+    rpSearch:'Search: name, subject, group', rpAdd:'+ Entry', rpAllT:'All teachers', rpAllS:'All subjects', rpAllSem:'All semesters', rpAllG:'All groups', rpAllO:'All orders', rpResAll:'All results', rpResOk:'✅ Passed', rpResNo:'❌ Failed', rpResNone:'⏳ No result', rpOk:'✓ Passed', rpNo:'✗ Failed', rpOkB:'✅ Passed', rpNoB:'❌ Failed', rpResL:'Result', rpPhone:'Student phone', rpResSum:(o,n)=>` · ✅ ${o} · ❌ ${n}`,
     rpFor:n=>`for sem ${n}`, rpH:n=>`${n} h`, rpN:n=>`${n} students`, rpSubG:n=>`subgroup ${n}`, rpNb:'not in base', rpSemO:n=>`Semester ${n}`,
     rpCount:(a,b)=>`Showing ${a} of ${b} entries`, rpNew:'New entry', rpEdit:'Entry', rpDelSure:'Delete for sure?',
-    rpXHead:['Subject','For semester','Assessment','Teacher','Hours','Subgroup','Name (as in order)','Group','Semester','Enrollment №','Order','Result'], rpXFile:'Repeat_courses',
+    rpXHead:['Subject','For semester','Assessment','Teacher','Hours','Subgroup','Name (as in order)','Group','Semester','Enrollment №','Order','Result','Phone'], rpXFile:'Repeat_courses',
     tabPay:'💳 Contract payment', tabIns:'🛡 Medical insurance', segSoon:'⚠ Expiring', segNone:'❌ None',
     insOk:d=>`🛡 until ${d}`, insSoon:(d,n)=>`⚠ insurance expires in ${n} days (${d})`, insNone:'❌ no insurance', insLate:d=>`❌ insurance expired ${d}`,
     insStat:'Medical insurance', insRec:'Listed', insValid:'Valid', insSoonL:'Expires ≤30 days', insNoneL:'None / expired',
@@ -701,11 +714,13 @@ function render() {
   const base = filtered(true);
   const p = base.filter(s => P(s)).length;
   const viewer = isAdmin() && role === 'viewer';
-  $('#tabs').hidden = !(isEditor() || viewer);
-  $('#tabs [data-tab=ins]').hidden = !isEditor();
+  const leader = isLeader();
+  $('#tabs').hidden = !(isEditor() || viewer || leader);
+  $('#tabs [data-tab=ins]').hidden = !(isEditor() || leader);
+  $('#tabs [data-tab=pay]').hidden = leader;                // староста не видит оплату контракта
   $('[data-i=navSec]').hidden = $('#tabs').hidden;
   setTimeout(() => { $('[data-i=navTools]').hidden = ![...document.querySelectorAll('.tools .tool')].some(b => !b.hidden); $('.tools').hidden = $('[data-i=navTools]').hidden; }, 0);
-  if (st.tab === 'rep' && !(isEditor() || viewer)) st.tab = 'pay';
+  if (st.tab === 'rep' && !(isEditor() || viewer || leader)) st.tab = 'pay';
   const rep = st.tab === 'rep';
   $('#mainView').hidden = rep; $('#repView').hidden = !rep;
   document.querySelectorAll('#tabs button').forEach(b => b.classList.toggle('on', b.dataset.tab === (rep ? 'rep' : INS() ? 'ins' : 'pay')));
@@ -1050,14 +1065,15 @@ function renderRep() {
       if (x['Подгруппа'] && x['Подгруппа'] !== lastSub) { lastSub = x['Подгруппа']; h += `<div class="rp-sub">${esc(t('rpSubG')(x['Подгруппа']))}</div>`; }
       const s = stuById[x['ID студента']];
       const sub = [x['Группа'], s && s.enr ? t('enr')(s.enr) : '', s && s.lat ? s.lat : ''].filter(Boolean).join(' · ');
+      const ph = x['Телефон'] ? `<a class="tel" href="tel:${esc(x['Телефон'].replace(/[^\d+]/g, ''))}">📞 ${esc(x['Телефон'])}</a>` : '';
       const res = x['Результат'] || '', rc = res === 'Прошёл' ? 'ok' : res === 'Не прошёл' ? 'no' : '';
       const dot = rc === 'ok' ? 'var(--ok)' : rc === 'no' ? 'var(--bad)' : 'var(--brand-2)';
       const resUi = isEditor()
         ? `<div class="res"><button class="ok${rc === 'ok' ? ' on' : ''}" data-ract="res" data-v="Прошёл" title="${t('rpOkB')}">✓</button><button class="no${rc === 'no' ? ' on' : ''}" data-ract="res" data-v="Не прошёл" title="${t('rpNoB')}">✗</button></div>`
         : rc ? `<span class="rbadge ${rc}">${t(rc === 'ok' ? 'rpOkB' : 'rpNoB')}</span>` : '';
       h += `<div class="row" data-rid="${esc(x.RID)}"><span class="dot" style="background:${dot}"></span>
-        <div class="nm"><b${s && s.leader ? ' class="lead"' : ''}>${esc(x['ФИО (по приказу)'])}${!x['ID студента'] ? `<span class="tag-nb">${t('rpNb')}</span>` : ''}</b><small>${esc(sub)}</small></div>
-        ${resUi}${isEditor() ? '<button class="edit" data-ract="edit" title="Редактировать">✎</button>' : ''}</div>`;
+        <div class="nm"><b${s && s.leader ? ' class="lead"' : ''}>${esc(x['ФИО (по приказу)'])}${!x['ID студента'] ? `<span class="tag-nb">${t('rpNb')}</span>` : ''}</b><small>${esc(sub)}</small>${ph ? `<small>${ph}</small>` : ''}</div>
+        ${resUi}${isEditor() ? '<button class="edit" data-ract="edit" title="Редактировать">✎</button>' : isLeader() ? `<button class="edit" data-ract="phone" title="${t('rpPhone')}">${x['Телефон'] ? '📞' : '📞+'}</button>` : ''}</div>`;
     });
   });
   $('#rList').innerHTML = h;
@@ -1072,10 +1088,32 @@ let rqT; $('#rq').oninput = () => { clearTimeout(rqT); rqT = setTimeout(renderRe
 $('#rRes').onchange = e => { rf.r = e.target.value; saveRf(); renderRep(); };
 $('#rReset').onclick = () => { rf.o = rf.r = rf.t = rf.s = rf.m = rf.g = ''; $('#rq').value = ''; saveRf(); renderRep(); };
 $('#rList').addEventListener('click', e => {
-  const b = e.target.closest('[data-ract]'); if (!b || !isEditor()) return;
+  const b = e.target.closest('[data-ract]'); if (!b || !(isEditor() || isLeader())) return;
   const x = rep.find(r => r.RID === b.closest('.row').dataset.rid); if (!x) return;
+  if (b.dataset.ract === 'phone') return openPhone(x);
+  if (!isEditor()) return;
   if (b.dataset.ract === 'res') return setRepResult(x, b.dataset.v);
   openRep(x);
+});
+/* Телефон студента на пересдаче (староста — своей группы) */
+let phRec = null;
+function openPhone(x) {
+  phRec = x;
+  const subj = rep.filter(r => samePerson(r, x)).map(r => r['Предмет']);
+  $('#phTitle').textContent = x['ФИО (по приказу)'];
+  $('#phSub').textContent = x['Группа'] + ' · ' + [...new Set(subj)].join(', ');
+  $('#phInput').value = x['Телефон'] || ''; $('#phErr').textContent = ''; $('#phBtn').disabled = false;
+  show('#mPhone'); setTimeout(() => $('#phInput').focus(), 50);
+}
+const samePerson = (a, b) => b['ID студента'] ? a['ID студента'] === b['ID студента'] : a['ФИО (по приказу)'] === b['ФИО (по приказу)'] && a['Группа'] === b['Группа'];
+$('#phForm').addEventListener('submit', async e => {
+  e.preventDefault(); if (!phRec) return;
+  $('#phBtn').disabled = true; $('#phErr').textContent = '';
+  try {
+    const j = await api('repeatPhone', { rid: phRec.RID, phone: $('#phInput').value });
+    rep.filter(r => samePerson(r, phRec)).forEach(r => r['Телефон'] = j.phone);
+    hide('#mPhone'); toast(t('saved')); renderRep();
+  } catch (err) { $('#phErr').textContent = err.message; $('#phBtn').disabled = false; }
 });
 async function setRepResult(x, v) {
   const old = x['Результат'] || '', val = old === v ? '' : v;      // повторное нажатие — снять отметку
@@ -1113,11 +1151,11 @@ $('#rpDel').onclick = async () => {
 $('#rXls').onclick = async () => {
   if (!isEditor()) return;
   const rows = rFiltered().slice().sort((a, b) => rKey(a).localeCompare(rKey(b), 'ru') || (+a['Подгруппа'] || 0) - (+b['Подгруппа'] || 0) || grpCmp(a['Группа'], b['Группа']));
-  const data = rows.map(x => [x['Предмет'], x['За семестр'], x['Форма контроля'], x['Преподаватель'], x['Часы'], x['Подгруппа'], x['ФИО (по приказу)'], x['Группа'], x['Семестр'], (stuById[x['ID студента']] || {}).enr || '', x['Приказ'], x['Результат'] || '']);
+  const data = rows.map(x => [x['Предмет'], x['За семестр'], x['Форма контроля'], x['Преподаватель'], x['Часы'], x['Подгруппа'], x['ФИО (по приказу)'], x['Группа'], x['Семестр'], (stuById[x['ID студента']] || {}).enr || '', x['Приказ'], x['Результат'] || '', x['Телефон'] || '']);
   const head = t('rpXHead'), name = [t('rpXFile'), rf.t, rf.s, todayStr()].filter(Boolean).join('_').replace(/[\\/:*?"<>|]/g, '');
   try {
     const X = await loadXLSX(); const ws = X.utils.aoa_to_sheet([head, ...data]);
-    ws['!cols'] = [34, 10, 16, 22, 6, 9, 32, 10, 9, 12, 22, 12].map(w => ({ wch: w })); ws['!autofilter'] = { ref: 'A1:L' + (data.length + 1) };
+    ws['!cols'] = [34, 10, 16, 22, 6, 9, 32, 10, 9, 12, 22, 12, 18].map(w => ({ wch: w })); ws['!autofilter'] = { ref: 'A1:M' + (data.length + 1) };
     const wb = X.utils.book_new(); X.utils.book_append_sheet(wb, ws, 'Repeat'); X.writeFile(wb, name + '.xlsx');
   } catch (e) {
     const csv = '﻿' + [head, ...data].map(r => r.map(v => '"' + String(v ?? '').replace(/"/g, '""') + '"').join(';')).join('\r\n');

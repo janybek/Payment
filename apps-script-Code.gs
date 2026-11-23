@@ -56,6 +56,7 @@ function handle_(p) {
       case 'repeatSave':   return repeatSave_(editor_(p.token), p.rec || {});
       case 'repeatDelete': return repeatDelete_(editor_(p.token), p.rid);
       case 'repeatResult': return repeatResult_(editor_(p.token), p.rids || [], p.result);
+      case 'repeatPhone':  return repeatPhone_(auth_(p.token), p.rid, p.phone);
       case 'delete':    return delete_(editor_(p.token), p.id);
       case 'deleteMany': return deleteMany_(editor_(p.token), p.group, p.semester);
       case 'groupEdit': return groupEdit_(editor_(p.token), p);
@@ -647,7 +648,7 @@ function menuDeadline() {
 // Лист «Повторный курс»: видят деканат и учителя, меняет только деканат. Студенты и старосты не видят.
 const SHEET_REPEAT = 'Повторный курс';
 const REPEAT_HEAD = ['RID', 'ID студента', 'ФИО (по приказу)', 'Группа', 'Семестр', 'Предмет', 'За семестр',
-                     'Форма контроля', 'Преподаватель', 'Часы', 'Подгруппа', 'Приказ', 'Примечание', 'Результат'];
+                     'Форма контроля', 'Преподаватель', 'Часы', 'Подгруппа', 'Приказ', 'Примечание', 'Результат', 'Телефон'];
 const REP_RESULTS = ['', 'Прошёл', 'Не прошёл'];
 
 function repeatSheet_() {
@@ -675,8 +676,47 @@ function readRepeat_() {
 }
 
 function repeatList_(user) {
-  if (user.role !== 'editor' && user.role !== 'viewer') throw new Error('Нет доступа');
-  return { ok: true, rows: readRepeat_().rows.map(r => { delete r._row; return r; }) };
+  const rows = readRepeat_().rows.map(r => { delete r._row; return r; });
+  if (user.role === 'editor') return { ok: true, rows: rows };
+  if (user.role === 'viewer') return { ok: true, rows: rows.map(r => { delete r['Телефон']; return r; }) };   // телефоны учителям не показываем
+  if (user.role === 'leader') { const mine = leaderRepeat_(user); return { ok: true, rows: rows.filter(mine) }; }
+  throw new Error('Нет доступа');
+}
+
+/** Староста видит записи своей группы: по группе из приказа или по ID студента из его группы. */
+function leaderRepeat_(user) {
+  const st = readAll_().rows, my = leaderGroups_(user, st), ids = {};
+  st.forEach(s => { if (my.indexOf(s['Группа']) >= 0) ids[s['ID']] = 1; });
+  return r => my.indexOf(r['Группа']) >= 0 || !!(r['ID студента'] && ids[r['ID студента']]);
+}
+
+function cleanPhone_(v) {
+  v = String(v == null ? '' : v).trim().replace(/^'/, '');
+  if (v && !/^\+?[\d\s()\-]{6,20}$/.test(v)) throw new Error('Телефон: только цифры, +, пробелы, скобки и дефис');
+  return v;
+}
+
+/** Телефон студента на пересдаче: деканат — любой записи, староста — своей группы.
+ *  Записывается во все записи этого студента (по всем предметам). */
+function repeatPhone_(user, rid, phone) {
+  phone = cleanPhone_(phone);
+  if (user.role !== 'editor' && user.role !== 'leader') throw new Error('Только просмотр — изменения недоступны');
+  return withLock_(() => {
+    const db = readRepeat_();
+    const r = db.rows.find(x => x.RID === rid);
+    if (!r) throw new Error('Запись не найдена');
+    if (user.role === 'leader' && !leaderRepeat_(user)(r)) throw new Error('Можно менять только студентов своей группы');
+    const c = repCol_(db, 'Телефон');
+    const same = x => r['ID студента'] ? x['ID студента'] === r['ID студента']
+                                       : x['ФИО (по приказу)'] === r['ФИО (по приказу)'] && x['Группа'] === r['Группа'];
+    let n = 0;
+    db.rows.filter(same).forEach(x => {
+      if ((x['Телефон'] || '') === phone) return;
+      db.sh.getRange(x._row, c + 1).setNumberFormat('@').setValue(phone); n++;
+    });
+    if (n) log_(user, 'Повторный курс: телефон', rid, r['ФИО (по приказу)'], r['Телефон'] || '', phone || '— удалён');
+    return { ok: true, count: n, phone: phone };
+  });
 }
 
 function repeatSave_(user, rec) {
@@ -685,9 +725,11 @@ function repeatSave_(user, rec) {
   ['ФИО (по приказу)', 'Группа', 'Предмет'].forEach(k => { if (!o[k]) throw new Error('Заполните поле «' + k + '»'); });
   ['Семестр', 'За семестр', 'Часы'].forEach(k => { if (o[k] && !/^\d{1,3}$/.test(o[k])) throw new Error('«' + k + '» — только число'); });
   if ('Результат' in o && REP_RESULTS.indexOf(o['Результат']) < 0) throw new Error('Неверный результат');
+  if ('Телефон' in o) o['Телефон'] = cleanPhone_(o['Телефон']);
   return withLock_(() => {
     const db = readRepeat_();
     if (o['Результат']) repCol_(db, 'Результат');
+    if (o['Телефон']) repCol_(db, 'Телефон');
     const col = {}; db.head.forEach((k, j) => col[k] = j);
     if (rec.RID) {
       const r = db.rows.find(x => x.RID === rec.RID);
@@ -696,7 +738,7 @@ function repeatSave_(user, rec) {
       Object.keys(o).forEach(k => {
         if (!(k in col) || String(r[k] || '') === o[k]) return;
         const cell = db.sh.getRange(r._row, col[k] + 1);
-        if (k === 'Группа') cell.setNumberFormat('@');
+        if (k === 'Группа' || k === 'Телефон') cell.setNumberFormat('@');
         cell.setValue(o[k]); ch.push([k, r[k] || '', o[k]]);
       });
       if (ch.length) log_(user, 'Повторный курс: изменено', rec.RID, o['ФИО (по приказу)'],
@@ -707,7 +749,7 @@ function repeatSave_(user, rec) {
     db.rows.forEach(x => { const m = /^R(\d+)$/.exec(x.RID); if (m) max = Math.max(max, +m[1]); });
     const rid = 'R' + String(max + 1).padStart(4, '0');
     db.sh.appendRow(db.head.map(k => k === 'RID' ? rid : (o[k] || '')));
-    if ('Группа' in col) db.sh.getRange(db.sh.getLastRow(), col['Группа'] + 1).setNumberFormat('@').setValue(o['Группа']);
+    ['Группа', 'Телефон'].forEach(k => { if ((k in col) && o[k]) db.sh.getRange(db.sh.getLastRow(), col[k] + 1).setNumberFormat('@').setValue(o[k]); });
     log_(user, 'Повторный курс: добавлено', rid, o['ФИО (по приказу)'], '', o['Предмет'] + ' · ' + o['Группа']);
     return { ok: true, rid: rid };
   });
