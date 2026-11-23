@@ -116,6 +116,12 @@ select{padding:9px 10px;border:1px solid var(--line);border-radius:10px;backgrou
 .row.u .pay{background:var(--ok);color:#fff}
 .row.p .pay{background:var(--soft);color:var(--muted)}
 .pay:disabled{opacity:.5;cursor:wait}
+.res{display:flex;gap:4px;flex:none}
+.res button{border:1px solid var(--line);background:var(--card);border-radius:10px;padding:6px 9px;cursor:pointer;font:inherit;font-size:13px;color:var(--muted);white-space:nowrap}
+.res button.on.ok{background:var(--ok);border-color:var(--ok);color:#fff}
+.res button.on.no{background:var(--bad);border-color:var(--bad);color:#fff}
+.rbadge{font-size:12px;font-weight:600;padding:4px 8px;border-radius:8px;white-space:nowrap;flex:none}
+.rbadge.ok{background:var(--ok-bg);color:var(--ok)} .rbadge.no{background:var(--bad-bg);color:var(--bad)}
 .edit{border:1px solid var(--line);background:var(--card);border-radius:10px;padding:7px 9px;cursor:pointer}
 .empty{text-align:center;color:var(--muted);padding:40px 10px}
 .more{margin:8px auto 30px;display:block;border:1px solid var(--line);background:var(--card);border-radius:10px;padding:10px 18px;cursor:pointer}
@@ -313,10 +319,12 @@ fieldset.leadf legend{font-size:13px;font-weight:700;padding:0 6px;color:var(--w
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
         <input id="rq" type="search" data-ip="rpSearch" placeholder="Поиск: ФИО, предмет, группа" autocomplete="off">
       </div>
+      <select id="rOrd"></select>
       <select id="rTeacher"></select>
       <select id="rSubj"></select>
       <select id="rSem"></select>
       <select id="rGrp"></select>
+      <select id="rRes"></select>
       <button class="addbtn adm" id="rAdd" hidden data-i="rpAdd">+ Запись</button>
       <button class="tool adm" id="rXls" hidden data-i="xls">⬇ Скачать Excel</button>
     </div>
@@ -414,7 +422,10 @@ fieldset.leadf legend{font-size:13px;font-weight:700;padding:0 6px;color:var(--w
       <div class="fld"><label>ID студента (если есть в базе)</label><input name="ID студента" placeholder="S0258"></div>
       <div class="fld"><label>Приказ</label><input name="Приказ"></div>
     </div>
-    <div class="fld"><label>Примечание</label><input name="Примечание"></div>
+    <div class="two">
+      <div class="fld"><label data-i="rpResL">Результат</label><select name="Результат"><option value="">—</option><option value="Прошёл">✅ Прошёл</option><option value="Не прошёл">❌ Не прошёл</option></select></div>
+      <div class="fld"><label>Примечание</label><input name="Примечание"></div>
+    </div>
     <datalist id="rpSubjList"></datalist><datalist id="rpTeachList"></datalist>
     <div class="err" id="rpErr"></div>
     <div class="acts"><button type="button" class="btn del" id="rpDel" hidden>🗑 Удалить</button><span style="flex:1"></span><button type="button" class="btn" data-close data-i="cancel">Отмена</button><button class="btn pri" id="rpBtn" data-i="iSave">Сохранить</button></div>
@@ -507,10 +518,10 @@ const L = {
     sxPayHead:by=>[by === 'sem' ? 'Семестр' : 'Группа', ...(by === 'grp' ? ['Семестр'] : []), 'Всего', 'Оплатили', 'Не оплатили', '% оплаты'],
     iUntil:'Страховка до (дд.мм.гггг)', iPaid:'Оплата страховки', iNoneL:'Страховки нет', iSave:'Сохранить',
     leaderB:'староста', tabRep:'🔁 Повторный курс', rpRecs:'Записей', rpStud:'Студентов', rpSubj:'Предметов',
-    rpSearch:'Поиск: ФИО, предмет, группа', rpAdd:'+ Запись', rpAllT:'Все преподаватели', rpAllS:'Все предметы', rpAllSem:'Все семестры', rpAllG:'Все группы',
+    rpSearch:'Поиск: ФИО, предмет, группа', rpAdd:'+ Запись', rpAllT:'Все преподаватели', rpAllS:'Все предметы', rpAllSem:'Все семестры', rpAllG:'Все группы', rpAllO:'Все приказы', rpResAll:'Все результаты', rpResOk:'✅ Прошли', rpResNo:'❌ Не прошли', rpResNone:'⏳ Без результата', rpOk:'✓ Прошёл', rpNo:'✗ Не прошёл', rpOkB:'✅ Прошёл', rpNoB:'❌ Не прошёл', rpResL:'Результат', rpResSum:(o,n)=>` · ✅ ${o} · ❌ ${n}`,
     rpFor:n=>`за ${n} сем.`, rpH:n=>`${n} ч.`, rpN:n=>`${n} студ.`, rpSubG:n=>`${n} подгруппа`, rpNb:'нет в базе', rpSemO:n=>`${n} семестр`,
     rpCount:(a,b)=>`Показано записей: ${a} из ${b}`, rpNew:'Новая запись', rpEdit:'Запись', rpDelSure:'Точно удалить?',
-    rpXHead:['Предмет','За семестр','Форма контроля','Преподаватель','Часы','Подгруппа','ФИО (по приказу)','Группа','Семестр','№ студ. билета','Приказ'], rpXFile:'Повторный_курс',
+    rpXHead:['Предмет','За семестр','Форма контроля','Преподаватель','Часы','Подгруппа','ФИО (по приказу)','Группа','Семестр','№ студ. билета','Приказ','Результат'], rpXFile:'Повторный_курс',
     tabPay:'💳 Оплата контракта', tabIns:'🛡 Медстраховка', segSoon:'⚠ Истекает', segNone:'❌ Нет',
     insOk:d=>`🛡 до ${d}`, insSoon:(d,n)=>`⚠ страховка истекает через ${n} дн. (${d})`, insNone:'❌ нет страховки', insLate:d=>`❌ страховка истекла ${d}`,
     insStat:'Медстраховка', insRec:'В списке', insValid:'Действует', insSoonL:'Истекает ≤30 дн.', insNoneL:'Нет / истекла',
@@ -537,10 +548,10 @@ const L = {
     sxPayHead:by=>[by === 'sem' ? 'Semester' : 'Group', ...(by === 'grp' ? ['Semester'] : []), 'Total', 'Paid', 'Not paid', '% paid'],
     iUntil:'Insurance valid until (dd.mm.yyyy)', iPaid:'Insurance payment', iNoneL:'No insurance', iSave:'Save',
     leaderB:'group leader', tabRep:'🔁 Repeat courses', rpRecs:'Entries', rpStud:'Students', rpSubj:'Subjects',
-    rpSearch:'Search: name, subject, group', rpAdd:'+ Entry', rpAllT:'All teachers', rpAllS:'All subjects', rpAllSem:'All semesters', rpAllG:'All groups',
+    rpSearch:'Search: name, subject, group', rpAdd:'+ Entry', rpAllT:'All teachers', rpAllS:'All subjects', rpAllSem:'All semesters', rpAllG:'All groups', rpAllO:'All orders', rpResAll:'All results', rpResOk:'✅ Passed', rpResNo:'❌ Failed', rpResNone:'⏳ No result', rpOk:'✓ Passed', rpNo:'✗ Failed', rpOkB:'✅ Passed', rpNoB:'❌ Failed', rpResL:'Result', rpResSum:(o,n)=>` · ✅ ${o} · ❌ ${n}`,
     rpFor:n=>`for sem ${n}`, rpH:n=>`${n} h`, rpN:n=>`${n} students`, rpSubG:n=>`subgroup ${n}`, rpNb:'not in base', rpSemO:n=>`Semester ${n}`,
     rpCount:(a,b)=>`Showing ${a} of ${b} entries`, rpNew:'New entry', rpEdit:'Entry', rpDelSure:'Delete for sure?',
-    rpXHead:['Subject','For semester','Assessment','Teacher','Hours','Subgroup','Name (as in order)','Group','Semester','Enrollment №','Order'], rpXFile:'Repeat_courses',
+    rpXHead:['Subject','For semester','Assessment','Teacher','Hours','Subgroup','Name (as in order)','Group','Semester','Enrollment №','Order','Result'], rpXFile:'Repeat_courses',
     tabPay:'💳 Contract payment', tabIns:'🛡 Medical insurance', segSoon:'⚠ Expiring', segNone:'❌ None',
     insOk:d=>`🛡 until ${d}`, insSoon:(d,n)=>`⚠ insurance expires in ${n} days (${d})`, insNone:'❌ no insurance', insLate:d=>`❌ insurance expired ${d}`,
     insStat:'Medical insurance', insRec:'Listed', insValid:'Valid', insSoonL:'Expires ≤30 days', insNoneL:'None / expired',
@@ -992,6 +1003,7 @@ function rOpts(sel, vals, all, cur, label) {
 function rFiltered() {
   const q = norm($('#rq').value);
   return rep.filter(x =>
+    (!rf.o || x['Приказ'] === rf.o) && (!rf.r || (rf.r === '-' ? !x['Результат'] : x['Результат'] === rf.r)) &&
     (!rf.t || x['Преподаватель'] === rf.t) && (!rf.s || x['Предмет'] === rf.s) &&
     (!rf.m || String(x['Семестр']) === rf.m) && (!rf.g || x['Группа'] === rf.g) &&
     (!q || q.split(' ').every(w => norm(x['ФИО (по приказу)'] + ' ' + x['Предмет'] + ' ' + x['Группа'] + ' ' + x['Преподаватель'] + ' ' + (stuById[x['ID студента']] || {}).lat).includes(w))));
@@ -1002,22 +1014,26 @@ function renderRep() {
   stuById = {}; all.forEach(s => stuById[s.id] = s);
   const uniq = (k, base) => [...new Set(base.map(x => x[k]).filter(Boolean))];
   const sortRu = a => a.sort((x, y) => x.localeCompare(y, 'ru'));
-  rOpts('#rTeacher', sortRu(uniq('Преподаватель', rep)), t('rpAllT'), rf.t || '');
-  // каскад: преподаватель → предмет → семестр → группа (каждый список — только из того, что подходит выше)
-  const byT = rep.filter(x => !rf.t || x['Преподаватель'] === rf.t);
+  rOpts('#rOrd', uniq('Приказ', rep).sort(), t('rpAllO'), rf.o || '');
+  // каскад: приказ → преподаватель → предмет → семестр → группа (каждый список — только из того, что подходит выше)
+  const byO = rep.filter(x => !$('#rOrd').value || x['Приказ'] === $('#rOrd').value);
+  rOpts('#rTeacher', sortRu(uniq('Преподаватель', byO)), t('rpAllT'), rf.t || '');
+  const byT = byO.filter(x => !$('#rTeacher').value || x['Преподаватель'] === $('#rTeacher').value);
   rOpts('#rSubj', sortRu(uniq('Предмет', byT)), t('rpAllS'), rf.s || '');
   const byS = byT.filter(x => !$('#rSubj').value || x['Предмет'] === $('#rSubj').value);
   rOpts('#rSem', uniq('Семестр', byS).sort((a, b) => a - b), t('rpAllSem'), rf.m || '', v => t('rpSemO')(v));
   const byM = byS.filter(x => !$('#rSem').value || String(x['Семестр']) === $('#rSem').value);
   rOpts('#rGrp', uniq('Группа', byM).sort(grpCmp), t('rpAllG'), rf.g || '');
-  ['t', 's', 'm', 'g'].forEach((k, i) => rf[k] = [$('#rTeacher'), $('#rSubj'), $('#rSem'), $('#rGrp')][i].value);
+  ['o', 't', 's', 'm', 'g'].forEach((k, i) => rf[k] = [$('#rOrd'), $('#rTeacher'), $('#rSubj'), $('#rSem'), $('#rGrp')][i].value);
+  $('#rRes').innerHTML = [['', t('rpResAll')], ['Прошёл', t('rpResOk')], ['Не прошёл', t('rpResNo')], ['-', t('rpResNone')]].map(o => `<option value="${o[0]}">${o[1]}</option>`).join('');
+  $('#rRes').value = rf.r || '';
   $('#rpSubjList').innerHTML = sortRu(uniq('Предмет', rep)).map(v => `<option value="${esc(v)}">`).join('');
   $('#rpTeachList').innerHTML = sortRu(uniq('Преподаватель', rep)).map(v => `<option value="${esc(v)}">`).join('');
   const rows = rFiltered();
   $('#rN').textContent = rows.length;
   $('#rS').textContent = new Set(rows.map(x => x['ФИО (по приказу)'] + x['Группа'])).size;
   $('#rB').textContent = new Set(rows.map(rKey)).size;
-  $('#rCount').textContent = t('rpCount')(rows.length, rep.length);
+  $('#rCount').textContent = t('rpCount')(rows.length, rep.length) + t('rpResSum')(rows.filter(x => x['Результат'] === 'Прошёл').length, rows.filter(x => x['Результат'] === 'Не прошёл').length);
   if (!rows.length) { $('#rList').innerHTML = `<div class="empty">${t('none')}</div>`; return; }
   const blocks = {};
   rows.forEach(x => (blocks[rKey(x)] ||= []).push(x));
@@ -1034,25 +1050,39 @@ function renderRep() {
       if (x['Подгруппа'] && x['Подгруппа'] !== lastSub) { lastSub = x['Подгруппа']; h += `<div class="rp-sub">${esc(t('rpSubG')(x['Подгруппа']))}</div>`; }
       const s = stuById[x['ID студента']];
       const sub = [x['Группа'], s && s.enr ? t('enr')(s.enr) : '', s && s.lat ? s.lat : ''].filter(Boolean).join(' · ');
-      h += `<div class="row" data-rid="${esc(x.RID)}"><span class="dot" style="background:var(--brand-2)"></span>
+      const res = x['Результат'] || '', rc = res === 'Прошёл' ? 'ok' : res === 'Не прошёл' ? 'no' : '';
+      const dot = rc === 'ok' ? 'var(--ok)' : rc === 'no' ? 'var(--bad)' : 'var(--brand-2)';
+      const resUi = isEditor()
+        ? `<div class="res"><button class="ok${rc === 'ok' ? ' on' : ''}" data-ract="res" data-v="Прошёл" title="${t('rpOkB')}">✓</button><button class="no${rc === 'no' ? ' on' : ''}" data-ract="res" data-v="Не прошёл" title="${t('rpNoB')}">✗</button></div>`
+        : rc ? `<span class="rbadge ${rc}">${t(rc === 'ok' ? 'rpOkB' : 'rpNoB')}</span>` : '';
+      h += `<div class="row" data-rid="${esc(x.RID)}"><span class="dot" style="background:${dot}"></span>
         <div class="nm"><b${s && s.leader ? ' class="lead"' : ''}>${esc(x['ФИО (по приказу)'])}${!x['ID студента'] ? `<span class="tag-nb">${t('rpNb')}</span>` : ''}</b><small>${esc(sub)}</small></div>
-        ${isEditor() ? '<button class="edit" data-ract="edit" title="Редактировать">✎</button>' : ''}</div>`;
+        ${resUi}${isEditor() ? '<button class="edit" data-ract="edit" title="Редактировать">✎</button>' : ''}</div>`;
     });
   });
   $('#rList').innerHTML = h;
 }
-['#rTeacher', '#rSubj', '#rSem', '#rGrp'].forEach((sel, i) => $(sel).onchange = e => {
-  const keys = ['t', 's', 'm', 'g'];
+['#rOrd', '#rTeacher', '#rSubj', '#rSem', '#rGrp'].forEach((sel, i) => $(sel).onchange = e => {
+  const keys = ['o', 't', 's', 'm', 'g'];
   rf[keys[i]] = e.target.value;
   keys.slice(i + 1).forEach(k => rf[k] = '');          // всё, что ниже по каскаду, сбрасываем
   saveRf(); renderRep();
 });
 let rqT; $('#rq').oninput = () => { clearTimeout(rqT); rqT = setTimeout(renderRep, 150); };
-$('#rReset').onclick = () => { rf.t = rf.s = rf.m = rf.g = ''; $('#rq').value = ''; saveRf(); renderRep(); };
+$('#rRes').onchange = e => { rf.r = e.target.value; saveRf(); renderRep(); };
+$('#rReset').onclick = () => { rf.o = rf.r = rf.t = rf.s = rf.m = rf.g = ''; $('#rq').value = ''; saveRf(); renderRep(); };
 $('#rList').addEventListener('click', e => {
   const b = e.target.closest('[data-ract]'); if (!b || !isEditor()) return;
-  openRep(rep.find(x => x.RID === b.closest('.row').dataset.rid));
+  const x = rep.find(r => r.RID === b.closest('.row').dataset.rid); if (!x) return;
+  if (b.dataset.ract === 'res') return setRepResult(x, b.dataset.v);
+  openRep(x);
 });
+async function setRepResult(x, v) {
+  const old = x['Результат'] || '', val = old === v ? '' : v;      // повторное нажатие — снять отметку
+  x['Результат'] = val; renderRep();
+  try { await api('repeatResult', { rids: [x.RID], result: val }); }
+  catch (err) { x['Результат'] = old; renderRep(); toast(t('err') + err.message); }
+}
 $('#rAdd').onclick = () => openRep(null);
 function openRep(x) {
   const f = $('#repForm'); f.reset(); $('#rpErr').textContent = '';
@@ -1083,11 +1113,11 @@ $('#rpDel').onclick = async () => {
 $('#rXls').onclick = async () => {
   if (!isEditor()) return;
   const rows = rFiltered().slice().sort((a, b) => rKey(a).localeCompare(rKey(b), 'ru') || (+a['Подгруппа'] || 0) - (+b['Подгруппа'] || 0) || grpCmp(a['Группа'], b['Группа']));
-  const data = rows.map(x => [x['Предмет'], x['За семестр'], x['Форма контроля'], x['Преподаватель'], x['Часы'], x['Подгруппа'], x['ФИО (по приказу)'], x['Группа'], x['Семестр'], (stuById[x['ID студента']] || {}).enr || '', x['Приказ']]);
+  const data = rows.map(x => [x['Предмет'], x['За семестр'], x['Форма контроля'], x['Преподаватель'], x['Часы'], x['Подгруппа'], x['ФИО (по приказу)'], x['Группа'], x['Семестр'], (stuById[x['ID студента']] || {}).enr || '', x['Приказ'], x['Результат'] || '']);
   const head = t('rpXHead'), name = [t('rpXFile'), rf.t, rf.s, todayStr()].filter(Boolean).join('_').replace(/[\\/:*?"<>|]/g, '');
   try {
     const X = await loadXLSX(); const ws = X.utils.aoa_to_sheet([head, ...data]);
-    ws['!cols'] = [34, 10, 16, 22, 6, 9, 32, 10, 9, 12, 22].map(w => ({ wch: w })); ws['!autofilter'] = { ref: 'A1:K' + (data.length + 1) };
+    ws['!cols'] = [34, 10, 16, 22, 6, 9, 32, 10, 9, 12, 22, 12].map(w => ({ wch: w })); ws['!autofilter'] = { ref: 'A1:L' + (data.length + 1) };
     const wb = X.utils.book_new(); X.utils.book_append_sheet(wb, ws, 'Repeat'); X.writeFile(wb, name + '.xlsx');
   } catch (e) {
     const csv = '﻿' + [head, ...data].map(r => r.map(v => '"' + String(v ?? '').replace(/"/g, '""') + '"').join(';')).join('\r\n');

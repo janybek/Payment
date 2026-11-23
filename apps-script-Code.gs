@@ -55,6 +55,7 @@ function handle_(p) {
       case 'repeatList':   return repeatList_(auth_(p.token));
       case 'repeatSave':   return repeatSave_(editor_(p.token), p.rec || {});
       case 'repeatDelete': return repeatDelete_(editor_(p.token), p.rid);
+      case 'repeatResult': return repeatResult_(editor_(p.token), p.rids || [], p.result);
       case 'delete':    return delete_(editor_(p.token), p.id);
       case 'deleteMany': return deleteMany_(editor_(p.token), p.group, p.semester);
       case 'groupEdit': return groupEdit_(editor_(p.token), p);
@@ -646,7 +647,8 @@ function menuDeadline() {
 // Лист «Повторный курс»: видят деканат и учителя, меняет только деканат. Студенты и старосты не видят.
 const SHEET_REPEAT = 'Повторный курс';
 const REPEAT_HEAD = ['RID', 'ID студента', 'ФИО (по приказу)', 'Группа', 'Семестр', 'Предмет', 'За семестр',
-                     'Форма контроля', 'Преподаватель', 'Часы', 'Подгруппа', 'Приказ', 'Примечание'];
+                     'Форма контроля', 'Преподаватель', 'Часы', 'Подгруппа', 'Приказ', 'Примечание', 'Результат'];
+const REP_RESULTS = ['', 'Прошёл', 'Не прошёл'];
 
 function repeatSheet_() {
   const ss = SpreadsheetApp.getActive();
@@ -682,8 +684,10 @@ function repeatSave_(user, rec) {
   REPEAT_HEAD.slice(1).forEach(k => { if (k in rec) o[k] = String(rec[k] == null ? '' : rec[k]).trim(); });
   ['ФИО (по приказу)', 'Группа', 'Предмет'].forEach(k => { if (!o[k]) throw new Error('Заполните поле «' + k + '»'); });
   ['Семестр', 'За семестр', 'Часы'].forEach(k => { if (o[k] && !/^\d{1,3}$/.test(o[k])) throw new Error('«' + k + '» — только число'); });
+  if ('Результат' in o && REP_RESULTS.indexOf(o['Результат']) < 0) throw new Error('Неверный результат');
   return withLock_(() => {
     const db = readRepeat_();
+    if (o['Результат']) repCol_(db, 'Результат');
     const col = {}; db.head.forEach((k, j) => col[k] = j);
     if (rec.RID) {
       const r = db.rows.find(x => x.RID === rec.RID);
@@ -717,6 +721,40 @@ function repeatDelete_(user, rid) {
     db.sh.deleteRow(r._row);
     log_(user, 'Повторный курс: удалено', rid, r['ФИО (по приказу)'], r['Предмет'] + ' · ' + r['Группа'] + ' · ' + r['Преподаватель'], '');
     return { ok: true };
+  });
+}
+
+/** Добавляет колонку на лист «Повторный курс», если её нет. Возвращает индекс (с 0). */
+function repCol_(db, name) {
+  let c = db.head.indexOf(name);
+  if (c >= 0) return c;
+  c = db.head.length;
+  db.sh.getRange(1, c + 1).setValue(name).setFontWeight('bold');
+  db.head.push(name);
+  return c;
+}
+
+/** Результат повторного курса: «Прошёл» / «Не прошёл» / '' (снять). Одной или нескольким записям. */
+function repeatResult_(user, rids, result) {
+  result = String(result || '');
+  if (REP_RESULTS.indexOf(result) < 0) throw new Error('Неверный результат');
+  if (!rids.length) throw new Error('Не выбрана запись');
+  return withLock_(() => {
+    const db = readRepeat_();
+    const c = repCol_(db, 'Результат');
+    const want = {}; rids.forEach(r => want[r] = 1);
+    const stamp = now_(), logRows = [];
+    db.rows.forEach(r => {
+      if (!want[r.RID] || (r['Результат'] || '') === result) return;
+      db.sh.getRange(r._row, c + 1).setValue(result);
+      logRows.push([stamp, user.n, 'Повторный курс: результат', r.RID, r['ФИО (по приказу)'],
+                    (r['Предмет'] || '') + (r['Результат'] ? ': ' + r['Результат'] : ''), result || '— снят']);
+    });
+    if (logRows.length) {
+      const lg = sheet_(SHEET_LOG);
+      lg.getRange(lg.getLastRow() + 1, 1, logRows.length, 7).setValues(logRows);
+    }
+    return { ok: true, count: logRows.length };
   });
 }
 
