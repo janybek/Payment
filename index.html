@@ -730,7 +730,7 @@ function render() {
   document.querySelectorAll('.auth').forEach(el => el.hidden = !isAdmin());
   if (!canMark()) { st.selMode = false; st.sel.clear(); }
   $('#selBtn').hidden = !canMark();
-  $('#actRow').hidden = !(isEditor() || canMark()); $('#addBtn').hidden = !isEditor();
+  $('#actRow').hidden = !(isEditor() || canMark()); $('#addBtn').hidden = !(isEditor() || leaderCanAdd());
   const adv = (st.sort !== 'grp') + (st.date !== '' && !INS()) + !!st.check + !!st.noNum;
   $('#moreN').hidden = !adv; $('#moreN').textContent = adv;
   $('#statsBtn').hidden = isLeader();
@@ -817,7 +817,9 @@ function openEdit(s) {
   const f = $('#editForm'); f.reset(); $('#eErr').textContent = '';
   $('#eTitle').textContent = s ? 'Редактировать · ' + s.id : 'Новый студент';
   f.dataset.id = s ? s.id : '';
-  const raw = s ? s.raw : { 'Статус оплаты': 'Не оплатил', 'Группа': st.grp, 'Семестр': st.sem, 'Курс': st.sem ? (all.find(x => String(x.sem) === st.sem) || {}).course : '' };
+  const me = isLeader() ? (all.find(x => x.leader) || all[0] || {}) : null;     // староста добавляет только в свою группу
+  const raw = s ? s.raw : me ? { 'Статус оплаты': 'Не оплатил', 'Группа': me.grp, 'Семестр': me.sem, 'Курс': me.course }
+                             : { 'Статус оплаты': 'Не оплатил', 'Группа': st.grp, 'Семестр': st.sem, 'Курс': st.sem ? (all.find(x => String(x.sem) === st.sem) || {}).course : '' };
   [...f.elements].forEach(el => {
     if (!el.name) return;
     if (el.type === 'checkbox') el.checked = raw[el.name] === 'Да';
@@ -843,6 +845,9 @@ function openEdit(s) {
   loadHistory(s);
   show('#mEdit'); setTimeout(() => f.elements['ФИО'].focus(), 50);
 }
+// старосты 1 семестра могут добавлять одногруппников (сервер проверяет то же самое)
+const LEADER_ADD_SEMESTERS = ['1'];
+const leaderCanAdd = () => isLeader() && all.some(x => x.leader && LEADER_ADD_SEMESTERS.indexOf(String(x.sem)) >= 0);
 const LEADER_EDIT = ['ФИО', 'ФИО (лат.)', 'Email', 'Телефон', 'Номер студ. билета', 'Пол', 'Дата рождения', 'Страховка до', 'Страховка оплата'];
 const canMark = () => isEditor() || (isLeader() && INS());   // староста — только оплату страховки
 async function loadHistory(s) {

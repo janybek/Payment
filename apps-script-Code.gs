@@ -19,6 +19,7 @@ const LEADER_LOGIN = 'Логин старосты';
 const PHONE = 'Телефон';            // мобильный студента: деканат и старосты (учителям не показывается)
 // Семестры, скрытые на публичной странице (админка видит всё)
 const HIDDEN_SEMESTERS = ['1'];
+const LEADER_ADD_SEMESTERS = ['1'];   // старосты этих семестров могут добавлять одногруппников
 const EDIT_FIELDS = [INS_UNTIL, INS_PAID, ENR, 'ФИО', 'ФИО (лат.)', 'Группа', 'Курс', 'Семестр', 'Статус оплаты',
   'ИНН / паспорт', 'Email', PHONE, 'Дата рождения', 'Пол', 'Проверить', 'Примечание'];
 
@@ -119,7 +120,7 @@ function insEditor_(token, ids) {
 function saveAny_(user, st) {
   if (user.role === 'editor') return save_(user, st);
   if (user.role !== 'leader') throw new Error('Только просмотр — изменения недоступны');
-  if (!st['ID']) throw new Error('Староста не может добавлять студентов');
+  if (!st['ID']) return leaderAdd_(user, st);
   const rows = readAll_().rows, s = rows.find(x => x['ID'] === st['ID']);
   if (!s || leaderGroups_(user, rows).indexOf(s['Группа']) < 0) throw new Error('Можно менять только студентов своей группы');
   const locked = Object.keys(st).filter(f => f !== 'ID' && LEADER_EDIT.indexOf(f) < 0 && EDIT_FIELDS.indexOf(f) >= 0 &&
@@ -127,6 +128,26 @@ function saveAny_(user, st) {
   if (locked.length) throw new Error('Староста не может менять: ' + locked.join(', '));
   const data = { ID: st['ID'] };
   LEADER_EDIT.forEach(f => { if (f in st) data[f] = st[f]; });
+  return save_(user, data);
+}
+
+/** Староста 1 семестра добавляет одногруппника: группа/курс/семестр — как у старосты,
+ *  оплата — «Не оплатил», карточка помечается ⚠ «Проверить», чтобы деканат её просмотрел. */
+function leaderAdd_(user, st) {
+  const rows = readAll_().rows, me = rows.find(x => x['ID'] === user.sid);
+  if (!me || leaderGroups_(user, rows).length === 0) throw new Error('Нет доступа');
+  if (LEADER_ADD_SEMESTERS.indexOf(String(me['Семестр'])) < 0)
+    throw new Error('Добавлять студентов могут только старосты ' + LEADER_ADD_SEMESTERS.join(', ') + ' семестра');
+  const name = String(st['ФИО'] || '').trim();
+  const nk = name.toLowerCase().replace(/ё/g, 'е').replace(/\s+/g, ' ');
+  const twin = rows.find(x => x['Группа'] === me['Группа'] &&
+    String(x['ФИО'] || '').toLowerCase().replace(/ё/g, 'е').replace(/\s+/g, ' ').trim() === nk);
+  if (nk && twin) throw new Error(name + ' уже есть в группе ' + me['Группа'] + ' (' + twin['ID'] + ')');
+  const data = {};
+  LEADER_EDIT.forEach(f => { if (f in st) data[f] = st[f]; });
+  data['Группа'] = me['Группа']; data['Курс'] = me['Курс']; data['Семестр'] = me['Семестр'];
+  data['Статус оплаты'] = 'Не оплатил';
+  data['Проверить'] = 'Да'; data['Примечание'] = 'Добавлен старостой';
   return save_(user, data);
 }
 
